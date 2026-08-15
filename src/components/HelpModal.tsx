@@ -12,33 +12,34 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
   return (
     <div
       id="help-modal-backdrop"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center p-2 sm:p-4 pt-[max(env(safe-area-inset-top,0px),58px)] pb-[max(env(safe-area-inset-bottom,0px),24px)] bg-black/90 backdrop-blur-md animate-fadeIn"
       onClick={onClose}
     >
       <div
         id="help-modal-container"
-        className="relative w-full max-w-md bg-[#0c0c0c] border border-[#333] rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col max-h-[85vh] text-[#e0e0e0]"
+        className="relative w-full max-w-md bg-[#0c0c0c] border border-[#333] rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.95)] overflow-hidden flex flex-col max-h-[80vh] max-h-[80dvh] text-[#e0e0e0]"
         onClick={e => e.stopPropagation()}
       >
         {/* Subtle Background Pattern */}
         <div className="absolute inset-0 opacity-15 pointer-events-none dark-dot-grid" />
 
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-[#121212] border-b border-[#2a2a2a] relative z-10">
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-[#1a1a1a] border border-amber-600/40 flex items-center justify-center text-lg sm:text-xl shadow-inner">
+        <div className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3.5 bg-[#121212] border-b border-[#2a2a2a] relative z-10 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-[#1a1a1a] border border-amber-600/40 flex items-center justify-center text-base sm:text-lg shadow-inner">
               📖
             </div>
             <div className="flex flex-col">
-              <span className="text-[9px] sm:text-[10px] uppercase tracking-widest text-amber-500 font-bold">Manual</span>
-              <h2 className="text-sm sm:text-lg font-serif italic text-[#e0e0e0]">Survival Field Guide</h2>
+              <span className="text-[8px] sm:text-[9px] uppercase tracking-widest text-amber-500 font-bold">Manual</span>
+              <h2 className="text-xs sm:text-base font-serif italic text-[#e0e0e0]">Survival Field Guide</h2>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#1a1a1a] hover:bg-[#252525] border border-[#333] flex items-center justify-center text-gray-400 hover:text-white transition-colors cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-red-950/80 hover:bg-red-900 border border-red-700/60 text-red-200 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-md"
           >
-            <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <X className="w-3.5 h-3.5 text-red-300" />
+            <span>閉じる</span>
           </button>
         </div>
 

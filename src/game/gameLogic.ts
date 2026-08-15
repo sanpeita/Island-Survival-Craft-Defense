@@ -41,6 +41,7 @@ export interface GameState {
     maxInk: number;
     selectedInkColor: string;
     lastFullWarningTime?: number;
+    lastAttackTime?: number;
   };
   time: {
     dayCount: number;
@@ -76,17 +77,17 @@ export interface GameState {
 export const INK_COLORS = ['#ec4899', '#06b6d4', '#84cc16', '#eab308', '#a855f7', '#f97316'];
 
 export const MAX_ITEM_CAPACITY: Record<ResourceType, number> = {
-  wood: 50,
-  stone: 50,
-  leaf: 50,
-  brick: 30,
-  rope: 30,
-  coconut: 20,
-  pumpkin: 30,
-  stew: 15,
-  iron: 30,
-  gold: 9999,
-  gem: 999,
+  wood: 999,
+  stone: 999,
+  leaf: 999,
+  brick: 999,
+  rope: 999,
+  coconut: 999,
+  pumpkin: 999,
+  stew: 99,
+  iron: 999,
+  gold: 99999,
+  gem: 9999,
 };
 
 export function createInitialGameState(): GameState {
@@ -854,9 +855,9 @@ export function updateGameWorld(
     const drop = s.groundDrops[i];
     const dist = Math.hypot(drop.x - s.player.x, drop.z - s.player.z);
 
-    if (dist < 2.4) {
+    if (dist < 4.0) {
       const currentCount = s.inventory[drop.resource] || 0;
-      const maxCap = MAX_ITEM_CAPACITY[drop.resource] ?? 50;
+      const maxCap = MAX_ITEM_CAPACITY[drop.resource] ?? 999;
 
       if (currentCount >= maxCap) {
         // Inventory is full for this item! Show "Full" above player
@@ -867,7 +868,7 @@ export function updateGameWorld(
         }
       } else {
         // Can pick up
-        if (dist < 0.85) {
+        if (dist < 1.4) {
           const canTake = Math.min(drop.amount, maxCap - currentCount);
           s.inventory[drop.resource] = currentCount + canTake;
           if (drop.resource === 'gold') {
@@ -880,6 +881,20 @@ export function updateGameWorld(
           const color = meta?.color || '#ffd700';
           spawnFloatingText(`+${canTake} ${icon}`, s.player.x, 2.2, s.player.z, color);
 
+          // Update gather quest progress on ground drop pickup
+          for (const q of s.quests) {
+            if (q.targetType === 'gather' && q.targetId === drop.resource && !q.completed) {
+              q.currentCount += canTake;
+              if (q.currentCount >= q.requiredCount) {
+                q.completed = true;
+                s.inventory.gold += q.rewardGold;
+                s.inventory.gem += q.rewardGem;
+                sounds.playCraftSuccess();
+                spawnFloatingText(`🏆 QUEST COMPLETE: ${q.titleJa}!`, s.player.x, 2.8, s.player.z, '#48bb32');
+              }
+            }
+          }
+
           if (canTake >= drop.amount) {
             s.groundDrops.splice(i, 1);
           } else {
@@ -887,7 +902,7 @@ export function updateGameWorld(
           }
         } else {
           // Vacuum magnet pull towards player
-          const pullSpeed = 8.0;
+          const pullSpeed = 12.0;
           drop.x += ((s.player.x - drop.x) / dist) * pullSpeed * deltaSeconds;
           drop.z += ((s.player.z - drop.z) / dist) * pullSpeed * deltaSeconds;
         }
@@ -995,92 +1010,212 @@ export function updateGameWorld(
   s.player.isAttacking = isAttackPressed;
 
   if (isAttackPressed) {
-    // Check nearby resource nodes to harvest
-    for (const node of s.resourceNodes) {
-      if (node.isDepleted) continue;
-      const dist = Math.hypot(node.x - s.player.x, node.z - s.player.z);
-      if (dist < 2.3) {
-        node.hp -= 1;
-        if (node.type === 'tree' || node.type === 'coconut_palm') {
-          sounds.playChop();
-          spawnPickupDrop('wood', node.x, node.z);
-          s.inventory.wood += 2;
-          s.inventory.leaf += 1;
-          if (node.type === 'coconut_palm' && Math.random() < 0.6) {
-            s.inventory.coconut += 1;
-            spawnPickupDrop('coconut', node.x, node.z);
-          }
-          spawnFloatingText('+2 🪵', node.x, 2, node.z, '#b57842');
-        } else if (node.type === 'rock' || node.type === 'iron_ore') {
-          sounds.playMine();
-          spawnPickupDrop('stone', node.x, node.z);
-          s.inventory.stone += 2;
-          if (node.type === 'iron_ore') {
-            s.inventory.iron += 2;
-            spawnPickupDrop('iron', node.x, node.z);
-            spawnFloatingText('+2 🔩', node.x, 2, node.z, '#ccd3de');
-          } else {
-            spawnFloatingText('+2 🪨', node.x, 2, node.z, '#9ca8b5');
-          }
-        } else if (node.type === 'pumpkin_patch') {
-          sounds.playCollect();
-          spawnPickupDrop('pumpkin', node.x, node.z);
-          s.inventory.pumpkin += 3;
-          spawnFloatingText('+3 🎃', node.x, 2, node.z, '#ff7700');
-        }
+    const lastAttack = s.player.lastAttackTime || 0;
+    const canSwing = now - lastAttack >= 220; // Tactile swing rhythm (~4.5 hits/sec)
 
-        // Quest Progress Check
-        for (const q of s.quests) {
-          if (q.targetType === 'gather' && q.targetId === node.resourceYield && !q.completed) {
-            q.currentCount += 2;
-            if (q.currentCount >= q.requiredCount) {
-              q.completed = true;
-              s.inventory.gold += q.rewardGold;
-              s.inventory.gem += q.rewardGem;
-              spawnFloatingText(`🏆 QUEST COMPLETE: ${q.titleJa}!`, s.player.x, 2.5, s.player.z, '#48bb32');
+    if (canSwing) {
+      s.player.lastAttackTime = now;
+
+      // Check nearby resource nodes to harvest
+      let hitNode = false;
+      for (const node of s.resourceNodes) {
+        if (node.isDepleted) continue;
+        const dist = Math.hypot(node.x - s.player.x, node.z - s.player.z);
+        if (dist < 2.5) {
+          hitNode = true;
+          node.hp -= 1;
+
+          if (node.type === 'tree' || node.type === 'coconut_palm') {
+            sounds.playChop();
+            s.inventory.wood = (s.inventory.wood || 0) + 1;
+            s.inventory.leaf = (s.inventory.leaf || 0) + 1;
+            spawnPickupDrop('wood', node.x, node.z);
+
+            // Spawn ground drops so items scatter and vacuum into inventory
+            s.groundDrops.push({
+              id: `drop_wood_${Date.now()}_${Math.random()}`,
+              resource: 'wood',
+              amount: 1,
+              x: node.x + (Math.random() - 0.5) * 0.8,
+              y: 1.0,
+              z: node.z + (Math.random() - 0.5) * 0.8,
+              createdAt: now,
+            });
+
+            if (node.type === 'coconut_palm' && Math.random() < 0.5) {
+              s.groundDrops.push({
+                id: `drop_coco_${Date.now()}_${Math.random()}`,
+                resource: 'coconut',
+                amount: 1,
+                x: node.x + (Math.random() - 0.5) * 0.8,
+                y: 1.0,
+                z: node.z + (Math.random() - 0.5) * 0.8,
+                createdAt: now,
+              });
+            }
+
+            spawnFloatingText('+1 🪵 (+1 🌿)', node.x, 2, node.z, '#b57842');
+          } else if (node.type === 'rock' || node.type === 'iron_ore') {
+            sounds.playMine();
+            const resType: ResourceType = node.type === 'iron_ore' ? 'iron' : 'stone';
+            s.inventory[resType] = (s.inventory[resType] || 0) + 1;
+            spawnPickupDrop(resType, node.x, node.z);
+
+            s.groundDrops.push({
+              id: `drop_rock_${Date.now()}_${Math.random()}`,
+              resource: resType,
+              amount: 1,
+              x: node.x + (Math.random() - 0.5) * 0.8,
+              y: 1.0,
+              z: node.z + (Math.random() - 0.5) * 0.8,
+              createdAt: now,
+            });
+
+            if (node.type === 'iron_ore') {
+              spawnFloatingText('+1 🔩', node.x, 2, node.z, '#ccd3de');
+            } else {
+              spawnFloatingText('+1 🪨', node.x, 2, node.z, '#9ca8b5');
+            }
+          } else if (node.type === 'pumpkin_patch') {
+            sounds.playCollect();
+            s.inventory.pumpkin = (s.inventory.pumpkin || 0) + 2;
+            spawnPickupDrop('pumpkin', node.x, node.z);
+            s.groundDrops.push({
+              id: `drop_pump_${Date.now()}_${Math.random()}`,
+              resource: 'pumpkin',
+              amount: 1,
+              x: node.x + (Math.random() - 0.5) * 0.8,
+              y: 1.0,
+              z: node.z + (Math.random() - 0.5) * 0.8,
+              createdAt: now,
+            });
+            spawnFloatingText('+2 🎃', node.x, 2, node.z, '#ff7700');
+          }
+
+          // Direct Quest Progress Check
+          for (const q of s.quests) {
+            if (q.targetType === 'gather' && q.targetId === node.resourceYield && !q.completed) {
+              q.currentCount += 1;
+              if (q.currentCount >= q.requiredCount) {
+                q.completed = true;
+                s.inventory.gold += q.rewardGold;
+                s.inventory.gem += q.rewardGem;
+                sounds.playCraftSuccess();
+                spawnFloatingText(`🏆 QUEST COMPLETE: ${q.titleJa}!`, s.player.x, 2.5, s.player.z, '#48bb32');
+              }
             }
           }
-        }
 
-        if (node.hp <= 0) {
-          node.isDepleted = true;
-          node.depletedUntil = now + node.respawnTime * 1000;
-        }
-        break;
-      }
-    }
+          // Node Depleted (Broken / Felled) - Burst with bonus ground loot!
+          if (node.hp <= 0) {
+            node.isDepleted = true;
+            node.depletedUntil = now + node.respawnTime * 1000;
+            sounds.playCraftSuccess();
 
-    // Check nearby enemies to attack with weapon
-    for (let i = s.enemies.length - 1; i >= 0; i--) {
-      const enemy = s.enemies[i];
-      const dist = Math.hypot(enemy.x - s.player.x, enemy.z - s.player.z);
-      if (dist < 2.5) {
-        sounds.playAttack();
-        sounds.playMonsterHit();
-        const dmg = s.player.stats.attackPower;
-        enemy.hp -= dmg;
-        spawnFloatingText(`-${dmg}⚔️`, enemy.x, 2.2, enemy.z, '#ff3333');
-
-        // Knockback
-        const kx = (enemy.x - s.player.x) / (dist || 1);
-        const kz = (enemy.z - s.player.z) / (dist || 1);
-        enemy.x += kx * 0.8;
-        enemy.z += kz * 0.8;
-
-        // Record in Enemy Library (ダメージを与えたことがある敵を記録)
-        if (s.enemyLibrary[enemy.type]) {
-          const entry = s.enemyLibrary[enemy.type];
-          if (!entry.damaged) {
-            entry.damaged = true;
-            entry.discovered = true;
-            entry.firstEncounterDay = s.time.dayCount;
-            sounds.playEnemyDiscovered();
-            spawnFloatingText(`📖 敵図鑑解放: ${entry.nameJa}!`, enemy.x, 3.0, enemy.z, '#ffc72b');
+            if (node.type === 'tree' || node.type === 'coconut_palm') {
+              s.groundDrops.push({
+                id: `drop_wood_bonus_${Date.now()}_1`,
+                resource: 'wood',
+                amount: 3,
+                x: node.x + 0.4,
+                y: 1.0,
+                z: node.z + 0.4,
+                createdAt: now,
+              });
+              s.groundDrops.push({
+                id: `drop_leaf_bonus_${Date.now()}_2`,
+                resource: 'leaf',
+                amount: 2,
+                x: node.x - 0.4,
+                y: 1.0,
+                z: node.z - 0.4,
+                createdAt: now,
+              });
+              if (node.type === 'coconut_palm') {
+                s.groundDrops.push({
+                  id: `drop_coco_bonus_${Date.now()}_3`,
+                  resource: 'coconut',
+                  amount: 2,
+                  x: node.x,
+                  y: 1.0,
+                  z: node.z + 0.5,
+                  createdAt: now,
+                });
+              }
+              spawnFloatingText('💥 伐採完了! (+3 🪵 +2 🌿)', node.x, 2.6, node.z, '#f59e0b');
+            } else if (node.type === 'rock' || node.type === 'iron_ore') {
+              const mainRes: ResourceType = node.type === 'iron_ore' ? 'iron' : 'stone';
+              s.groundDrops.push({
+                id: `drop_ore_bonus_${Date.now()}_1`,
+                resource: mainRes,
+                amount: 3,
+                x: node.x + 0.4,
+                y: 1.0,
+                z: node.z - 0.4,
+                createdAt: now,
+              });
+              s.groundDrops.push({
+                id: `drop_stone_bonus_${Date.now()}_2`,
+                resource: 'stone',
+                amount: 2,
+                x: node.x - 0.4,
+                y: 1.0,
+                z: node.z + 0.4,
+                createdAt: now,
+              });
+              spawnFloatingText(`💥 採掘完了! (+3 ${node.type === 'iron_ore' ? '🔩' : '🪨'})`, node.x, 2.6, node.z, '#f59e0b');
+            } else if (node.type === 'pumpkin_patch') {
+              s.groundDrops.push({
+                id: `drop_pump_bonus_${Date.now()}`,
+                resource: 'pumpkin',
+                amount: 3,
+                x: node.x,
+                y: 1.0,
+                z: node.z,
+                createdAt: now,
+              });
+              spawnFloatingText('💥 収穫完了! (+3 🎃)', node.x, 2.6, node.z, '#f59e0b');
+            }
           }
+          break;
         }
+      }
 
-        if (enemy.hp <= 0) {
-          handleEnemyDefeat(s, enemy, i, spawnFloatingText, spawnPickupDrop);
+      // Check nearby enemies to attack with weapon (if not hitting node or in range)
+      if (!hitNode) {
+        for (let i = s.enemies.length - 1; i >= 0; i--) {
+          const enemy = s.enemies[i];
+          const dist = Math.hypot(enemy.x - s.player.x, enemy.z - s.player.z);
+          if (dist < 2.5) {
+            sounds.playAttack();
+            sounds.playMonsterHit();
+            const dmg = s.player.stats.attackPower;
+            enemy.hp -= dmg;
+            spawnFloatingText(`-${dmg}⚔️`, enemy.x, 2.2, enemy.z, '#ff3333');
+
+            // Knockback
+            const kx = (enemy.x - s.player.x) / (dist || 1);
+            const kz = (enemy.z - s.player.z) / (dist || 1);
+            enemy.x += kx * 0.8;
+            enemy.z += kz * 0.8;
+
+            // Record in Enemy Library (ダメージを与えたことがある敵を記録)
+            if (s.enemyLibrary[enemy.type]) {
+              const entry = s.enemyLibrary[enemy.type];
+              if (!entry.damaged) {
+                entry.damaged = true;
+                entry.discovered = true;
+                entry.firstEncounterDay = s.time.dayCount;
+                sounds.playEnemyDiscovered();
+                spawnFloatingText(`📖 敵図鑑解放: ${entry.nameJa}!`, enemy.x, 3.0, enemy.z, '#ffc72b');
+              }
+            }
+
+            if (enemy.hp <= 0) {
+              handleEnemyDefeat(s, enemy, i, spawnFloatingText, spawnPickupDrop);
+            }
+            break;
+          }
         }
       }
     }

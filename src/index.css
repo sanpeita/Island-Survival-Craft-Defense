@@ -67,16 +67,16 @@ html, body, #root {
   -webkit-overflow-scrolling: auto;
 }
 
-/* Safe area padding utilities for iPhone 16 Dynamic Island & Home Bar */
+/* Safe area padding utilities for iPhone 16 Dynamic Island, Notch, & Home Bar */
 .safe-top {
-  padding-top: max(env(safe-area-inset-top, 0px), 8px);
+  padding-top: max(env(safe-area-inset-top, 0px), 54px);
 }
 .safe-bottom {
-  padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 24px);
 }
 .safe-left {
-  padding-left: max(env(safe-area-inset-left, 0px), 8px);
+  padding-left: max(env(safe-area-inset-left, 0px), 12px);
 }
 .safe-right {
-  padding-right: max(env(safe-area-inset-right, 0px), 8px);
+  padding-right: max(env(safe-area-inset-right, 0px), 12px);
 }

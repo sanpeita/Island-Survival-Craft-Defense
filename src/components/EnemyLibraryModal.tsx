@@ -25,35 +25,36 @@ export const EnemyLibraryModal: React.FC<EnemyLibraryModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-2 sm:p-4 pt-[max(env(safe-area-inset-top,0px),58px)] pb-[max(env(safe-area-inset-bottom,0px),24px)] bg-black/90 backdrop-blur-md">
         <motion.div
           initial={{ opacity: 0, scale: 0.94, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: 15 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-lg max-h-[90dvh] flex flex-col bg-[#0f172a] border border-[#334155] rounded-2xl shadow-2xl text-slate-200 overflow-hidden font-sans"
+          className="relative w-full max-w-lg max-h-[80dvh] flex flex-col bg-[#0f172a] border border-[#334155] rounded-2xl shadow-2xl text-slate-200 overflow-hidden font-sans"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#1e293b] bg-[#1e293b]/70">
-            <div className="flex items-center space-x-3">
-              <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                <BookOpen className="w-5 h-5" />
+          <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3.5 border-b border-[#1e293b] bg-[#1e293b]/70 shrink-0">
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-1.5">
                   島嶼性生物図鑑
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono">
-                    {discoveredCount} / {entries.length} 解放
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono">
+                    {discoveredCount}/{entries.length}
                   </span>
                 </h2>
-                <p className="text-xs text-slate-400">ダメージを与えた敵の生態・弱点データが記録されます</p>
+                <p className="text-[10px] text-slate-400">ダメージを与えた敵の生態・弱点データ</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-slate-100 hover:bg-slate-700 active:scale-95 transition-all"
+              className="px-3 py-1.5 rounded-xl bg-red-950/80 hover:bg-red-900 border border-red-700/60 text-red-200 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-md"
             >
-              <X className="w-5 h-5" />
+              <X className="w-3.5 h-3.5 text-red-300" />
+              <span>閉じる</span>
             </button>
           </div>
 

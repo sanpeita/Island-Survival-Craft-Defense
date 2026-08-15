@@ -71,7 +71,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
   };
 
   return (
-    <div className="absolute inset-0 z-50 flex flex-col justify-between p-4 sm:p-6 bg-gradient-to-b from-sky-900/80 via-slate-900/90 to-[#0c121e] backdrop-blur-md select-none text-white overflow-y-auto">
+    <div className="absolute inset-0 z-50 flex flex-col justify-between p-4 sm:p-6 pt-[max(env(safe-area-inset-top,0px),56px)] pb-[max(env(safe-area-inset-bottom,0px),24px)] bg-gradient-to-b from-sky-900/80 via-slate-900/90 to-[#0c121e] backdrop-blur-md select-none text-white overflow-y-auto safe-left safe-right">
       {/* Top Header Row */}
       <div className="w-full flex items-center justify-between pointer-events-auto">
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-semibold tracking-wider text-sky-200">
