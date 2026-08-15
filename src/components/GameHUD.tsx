@@ -71,6 +71,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
     : false;
 
   const hpPercent = Math.round((player.stats.hp / player.stats.maxHp) * 100);
+  const sanPercent = Math.round((player.stats.san / player.stats.maxSan) * 100);
   const inkPercent = Math.round((player.ink / player.maxInk) * 100);
   const discoveredEnemyCount = (Object.values(enemyLibrary) as Array<{ damaged?: boolean }>).filter(e => e.damaged).length;
 
@@ -126,18 +127,35 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
           <div className="h-4 w-[1px] bg-[#333]" />
 
-          {/* Vitals HP Meter */}
-          <div className="flex items-center gap-1">
-            <span className="text-red-500 text-[10px] font-bold">❤</span>
-            <div className="flex flex-col w-12 sm:w-16">
-              <div className="flex justify-between items-center text-[7.5px] text-gray-400 font-mono">
-                <span className="text-[#e0e0e0] font-bold">{player.stats.hp}/{player.stats.maxHp}</span>
+          {/* Vitals: HP + SAN Meters */}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1">
+              <span className="text-red-500 text-[10px] font-bold">❤</span>
+              <div className="flex flex-col w-12 sm:w-16">
+                <div className="flex justify-between items-center text-[7.5px] text-gray-400 font-mono">
+                  <span className="text-[#e0e0e0] font-bold">{player.stats.hp}/{player.stats.maxHp}</span>
+                </div>
+                <div className="w-full h-1.5 bg-[#222] rounded-full overflow-hidden mt-0.5 border border-[#333]/50">
+                  <div
+                    className="h-full rounded-full transition-all duration-300 bg-gradient-to-r from-red-600 to-amber-500"
+                    style={{ width: `${hpPercent}%` }}
+                  />
+                </div>
               </div>
-              <div className="w-full h-1.5 bg-[#222] rounded-full overflow-hidden mt-0.5 border border-[#333]/50">
-                <div
-                  className="h-full rounded-full transition-all duration-300 bg-gradient-to-r from-red-600 to-amber-500"
-                  style={{ width: `${hpPercent}%` }}
-                />
+            </div>
+
+            <div className="flex items-center gap-1">
+              <span className="text-purple-400 text-[10px] font-bold">🧠</span>
+              <div className="flex flex-col w-12 sm:w-16">
+                <div className="flex justify-between items-center text-[7.5px] text-gray-400 font-mono">
+                  <span className="text-[#e0e0e0] font-bold">{player.stats.san}/{player.stats.maxSan}</span>
+                </div>
+                <div className="w-full h-1.5 bg-[#222] rounded-full overflow-hidden mt-0.5 border border-[#333]/50">
+                  <div
+                    className="h-full rounded-full transition-all duration-300 bg-gradient-to-r from-purple-700 to-fuchsia-400"
+                    style={{ width: `${sanPercent}%` }}
+                  />
+                </div>
               </div>
             </div>
           </div>

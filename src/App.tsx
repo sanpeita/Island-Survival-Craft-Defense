@@ -365,8 +365,9 @@ export default function App() {
       next.inventory.stew -= 1;
       next.player.stats.hp = Math.min(next.player.stats.maxHp, next.player.stats.hp + 50);
       next.player.stats.hunger = 100;
+      next.player.stats.san = Math.min(next.player.stats.maxSan, (next.player.stats.san ?? 50) + 25);
       if (engineRef.current) {
-        engineRef.current.spawnFloatingText('+50 ❤️ HP HEALED', next.player.x, 2, next.player.z, '#48bb32');
+        engineRef.current.spawnFloatingText('+50 ❤️ HP +25 🧠 SAN', next.player.x, 2, next.player.z, '#48bb32');
       }
       return next;
     });
@@ -378,9 +379,11 @@ export default function App() {
       const next = { ...prev };
       next.inventory[food] -= 1;
       const heal = food === 'stew' ? 50 : food === 'coconut' ? 15 : 8;
+      const sanHeal = food === 'stew' ? 25 : food === 'coconut' ? 12 : 6;
       next.player.stats.hp = Math.min(next.player.stats.maxHp, next.player.stats.hp + heal);
+      next.player.stats.san = Math.min(next.player.stats.maxSan, (next.player.stats.san ?? 50) + sanHeal);
       if (engineRef.current) {
-        engineRef.current.spawnFloatingText(`+${heal} ❤️ HP`, next.player.x, 2, next.player.z, '#48bb32');
+        engineRef.current.spawnFloatingText(`+${heal} ❤️ +${sanHeal} 🧠 SAN`, next.player.x, 2, next.player.z, '#48bb32');
       }
       return next;
     });

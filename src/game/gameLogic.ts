@@ -91,6 +91,13 @@ export const MAX_ITEM_CAPACITY: Record<ResourceType, number> = {
   gem: 9999,
 };
 
+// --- SAN (正気度) システム定数 ---
+export const SAN_MAX = 100;
+export const SAN_RECOVER_SAFEHOUSE = 8;   // 自拠点（安全地帯）にいる間の回復 /秒
+export const SAN_RECOVER_DAY = 1.5;       // 日中・屋外での微回復 /秒（夕方は昼扱い）
+export const SAN_DRAIN_NIGHT = 4;         // 夜間・屋外でのスリップ減少 /秒
+export const SAN_UNREVEALED_MULTIPLIER = 10; // インク未塗布の未踏領域では10倍速で減少
+
 export function createInitialGameState(): GameState {
   const saved = loadSavedGame();
   if (saved) return saved;
@@ -236,6 +243,8 @@ export function createInitialGameState(): GameState {
         maxStamina: 100,
         hunger: 100,
         maxHunger: 100,
+        san: 50,
+        maxSan: 100,
         level: 1,
         gold: 150,
         equippedTool: 'wooden_axe',
@@ -318,6 +327,9 @@ export function loadSavedGame(): GameState | null {
       parsed.player.x = 0;
       parsed.player.z = -3.2;
       parsed.player.lastFullWarningTime = 0;
+      // SAN値マイグレーション（旧セーブには存在しないため初期化）
+      parsed.player.stats.san = parsed.player.stats.san ?? 50;
+      parsed.player.stats.maxSan = parsed.player.stats.maxSan ?? SAN_MAX;
       parsed.enemies = [];
       parsed.projectiles = [];
       parsed.inkProjectiles = [];
@@ -828,6 +840,38 @@ export function updateGameWorld(
     s.player.x = resolved.x;
     s.player.z = resolved.z;
     s.player.rotation = Math.atan2(inputMove.x, inputMove.y);
+  }
+
+  // --- 4.5. SAN（正気度）システム ---
+  {
+    const sanStats = s.player.stats;
+    const inSafeZone = isPositionInSafeZone(s.player.x, s.player.z, s.structures, s.safehouse.level);
+    const inRevealed = isPositionInRevealedArea(s.player.x, s.player.z, s.revealedAreas);
+
+    let sanDelta = 0;
+    if (inSafeZone) {
+      // 自拠点（安全地帯）では常時回復
+      sanDelta = SAN_RECOVER_SAFEHOUSE;
+    } else if (s.time.phase === 'day' || s.time.phase === 'sunset') {
+      // 日中（夕方は昼扱い）・屋外ではほんのわずか回復
+      sanDelta = SAN_RECOVER_DAY;
+    } else if (s.time.phase === 'night') {
+      // 夜間・屋外ではスリップで減少（インク未塗布の未踏領域は10倍速）
+      let drain = SAN_DRAIN_NIGHT;
+      if (!inRevealed) drain *= SAN_UNREVEALED_MULTIPLIER;
+      sanDelta = -drain;
+    }
+    // sunrise: SAN停滞（変化なし）
+
+    sanStats.san = Math.max(0, Math.min(sanStats.maxSan, sanStats.san + sanDelta * deltaSeconds));
+
+    // SANがゼロになったら自拠点（ファブリケーター前）へリスポーン
+    if (sanStats.san <= 0) {
+      sanStats.san = 50;
+      s.player.x = 0;
+      s.player.z = -3.2;
+      spawnFloatingText('🌙 SAN 0... 自拠点へ気を失って帰還', 0, 2, -3.2, '#a855f7');
+    }
   }
 
   // --- 5. FABRICATOR PROXIMITY & AUTO-SAVE (ファブリケーターへ触れるとセーブ) ---
@@ -1389,11 +1433,22 @@ export function updateGameWorld(
       }
     }
 
+    // 塗りたてのインク領域（残存インク）に触れている間は挙動（移動速度）が半減
+    // スロウ効果自体はダメージを与えない
+    let inkSlowed = false;
+    for (const sp of s.inkSplatters) {
+      if (Math.hypot(enemy.x - sp.x, enemy.z - sp.z) < sp.radius) {
+        inkSlowed = true;
+        break;
+      }
+    }
+    const effectiveSpeed = inkSlowed ? enemy.speed * 0.5 : enemy.speed;
+
     if (dist > 1.3) {
       // If player is inside safe zone, enemy does not rush in directly
       if (!isPlayerSafe) {
-        enemy.x += (dx / dist) * enemy.speed * deltaSeconds;
-        enemy.z += (dz / dist) * enemy.speed * deltaSeconds;
+        enemy.x += (dx / dist) * effectiveSpeed * deltaSeconds;
+        enemy.z += (dz / dist) * effectiveSpeed * deltaSeconds;
       }
     } else {
       // Attack player if not in safe zone

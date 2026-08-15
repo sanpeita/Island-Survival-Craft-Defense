@@ -184,6 +184,8 @@ export interface PlayerStats {
   maxStamina: number;
   hunger: number;
   maxHunger: number;
+  san: number;
+  maxSan: number;
   level: number;
   gold: number;
   equippedTool: ToolType;
