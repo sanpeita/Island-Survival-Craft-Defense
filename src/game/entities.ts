@@ -343,12 +343,101 @@ export function createInkSplatterMesh(colorHex = 0xec4899, radius = 2.2): THREE.
   const splatMat = new THREE.MeshBasicMaterial({
     color: colorHex,
     transparent: true,
-    opacity: 0.82,
+    opacity: 0.85,
     depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
   });
   const mesh = new THREE.Mesh(splatGeo, splatMat);
   mesh.position.y = 0.04;
   return mesh;
+}
+
+// --- GROUND DROPS (Dropped Items / Monster Loot) ---
+export function createGroundDropMesh(resource: ResourceType): THREE.Group {
+  const group = new THREE.Group();
+
+  if (resource === 'gold') {
+    // Sparkling Gold Ingot / Coin
+    const goldGeo = new THREE.BoxGeometry(0.32, 0.22, 0.45);
+    const goldMat = new THREE.MeshStandardMaterial({
+      color: 0xffd700,
+      metalness: 0.9,
+      roughness: 0.2,
+      emissive: 0x996600,
+      emissiveIntensity: 0.35,
+    });
+    const mesh = new THREE.Mesh(goldGeo, goldMat);
+    mesh.castShadow = true;
+    group.add(mesh);
+
+    // Glowing spark beacon
+    const glowGeo = new THREE.OctahedronGeometry(0.12, 0);
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xffea70 });
+    const glow = new THREE.Mesh(glowGeo, glowMat);
+    glow.position.y = 0.32;
+    group.add(glow);
+  } else if (resource === 'gem') {
+    // Glowing Island Diamond / Gemstone
+    const gemGeo = new THREE.OctahedronGeometry(0.28, 0);
+    gemGeo.scale(1, 1.4, 1);
+    const gemMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.6,
+      metalness: 0.8,
+      roughness: 0.1,
+    });
+    const mesh = new THREE.Mesh(gemGeo, gemMat);
+    mesh.castShadow = true;
+    group.add(mesh);
+  } else if (resource === 'iron') {
+    // Iron Ingot
+    const ironGeo = new THREE.BoxGeometry(0.3, 0.18, 0.45);
+    const ironMat = new THREE.MeshStandardMaterial({
+      color: 0xd1d5db,
+      metalness: 0.85,
+      roughness: 0.3,
+    });
+    const mesh = new THREE.Mesh(ironGeo, ironMat);
+    mesh.castShadow = true;
+    group.add(mesh);
+  } else if (resource === 'wood') {
+    const logGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.45, 5);
+    const mesh = new THREE.Mesh(logGeo, materials.woodBark);
+    mesh.rotateZ(Math.PI / 2);
+    mesh.castShadow = true;
+    group.add(mesh);
+  } else if (resource === 'stone') {
+    const rockGeo = new THREE.DodecahedronGeometry(0.2, 0);
+    const mesh = new THREE.Mesh(rockGeo, materials.stone);
+    mesh.castShadow = true;
+    group.add(mesh);
+  } else if (resource === 'leaf') {
+    const leafGeo = new THREE.BoxGeometry(0.35, 0.05, 0.35);
+    const mesh = new THREE.Mesh(leafGeo, materials.palmLeaf);
+    mesh.castShadow = true;
+    group.add(mesh);
+  } else if (resource === 'pumpkin') {
+    const pGeo = new THREE.SphereGeometry(0.22, 6, 6);
+    const mesh = new THREE.Mesh(pGeo, materials.pumpkinOrange);
+    mesh.castShadow = true;
+    group.add(mesh);
+  } else if (resource === 'coconut') {
+    const cGeo = new THREE.SphereGeometry(0.2, 6, 6);
+    const mesh = new THREE.Mesh(cGeo, materials.woodBark);
+    mesh.castShadow = true;
+    group.add(mesh);
+  } else {
+    const boxGeo = new THREE.BoxGeometry(0.28, 0.28, 0.28);
+    const mesh = new THREE.Mesh(boxGeo, materials.goldMetal);
+    mesh.castShadow = true;
+    group.add(mesh);
+  }
+
+  group.userData = { resource, baseScale: 1 };
+  return group;
 }
 
 // --- PALM TREE ---

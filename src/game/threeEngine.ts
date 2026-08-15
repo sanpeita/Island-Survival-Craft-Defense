@@ -14,8 +14,9 @@ import {
   createArrowMesh,
   createInkProjectileMesh,
   createInkSplatterMesh,
+  createGroundDropMesh,
 } from './entities';
-import { TimeOfDay, ResourceType, ToolType, InkProjectile, InkSplatter } from '../types/game';
+import { TimeOfDay, ResourceType, ToolType, InkProjectile, InkSplatter, FloatingDrop } from '../types/game';
 import { RevealedArea } from './gameLogic';
 
 export interface Floating3DText {
@@ -55,6 +56,7 @@ export class IslandThreeEngine {
   public arrowMeshes: Map<string, THREE.Group> = new Map();
   public inkProjectileMeshes: Map<string, THREE.Group> = new Map();
   public inkSplatterMeshes: Map<string, THREE.Mesh> = new Map();
+  public groundDropMeshes: Map<string, THREE.Group> = new Map();
   public floatingTexts: Floating3DText[] = [];
   public floatingPickups: FloatingPickup[] = [];
 
@@ -514,16 +516,53 @@ export class IslandThreeEngine {
         this.inkSplatterMeshes.delete(id);
       }
     }
-    for (const s of splatters) {
+    const now = performance.now();
+    splatters.forEach((s, idx) => {
       let mesh = this.inkSplatterMeshes.get(s.id);
       if (!mesh) {
         mesh = createInkSplatterMesh(parseInt(s.color.replace('#', '0x'), 16), s.radius);
-        const y = this.getTerrainHeight(s.x, s.z) + 0.02;
+        // Stagger Y slightly based on index to eliminate z-fighting / flickering
+        const y = this.getTerrainHeight(s.x, s.z) + 0.02 + ((idx % 30) * 0.001);
         mesh.position.set(s.x, y, s.z);
         mesh.rotation.y = s.rotation;
         this.scene.add(mesh);
         this.inkSplatterMeshes.set(s.id, mesh);
       }
+
+      // Smoothly fade out opacity as it nears lifetime expiration
+      const created = s.createdAt || now;
+      const lifetime = s.lifetime || 14000;
+      const elapsed = now - created;
+      const remainingRatio = Math.max(0, 1 - (elapsed / lifetime));
+      const opacity = Math.max(0, Math.min(0.85, remainingRatio * 1.5));
+      if (mesh.material) {
+        (mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
+      }
+    });
+  }
+
+  // --- SYNC GROUND DROPS (Enemy Loot & Pickups) ---
+  public syncGroundDrops(drops: FloatingDrop[]) {
+    const currentIds = new Set(drops.map(d => d.id));
+    for (const [id, mesh] of this.groundDropMeshes.entries()) {
+      if (!currentIds.has(id)) {
+        this.scene.remove(mesh);
+        this.groundDropMeshes.delete(id);
+      }
+    }
+    for (const drop of drops) {
+      let mesh = this.groundDropMeshes.get(drop.id);
+      if (!mesh) {
+        mesh = createGroundDropMesh(drop.resource);
+        mesh.userData = {
+          phase: Math.random() * Math.PI * 2,
+          resource: drop.resource,
+        };
+        this.scene.add(mesh);
+        this.groundDropMeshes.set(drop.id, mesh);
+      }
+      const y = this.getTerrainHeight(drop.x, drop.z);
+      mesh.position.set(drop.x, y + 0.35, drop.z);
     }
   }
 
@@ -710,6 +749,16 @@ export class IslandThreeEngine {
         ft.mesh.position.y += ft.vy;
         (ft.mesh.material as THREE.SpriteMaterial).opacity = 1 - elapsed / ft.lifetime;
       }
+    }
+
+    // Animate Ground Drops (Enemy Loot & Pickups)
+    for (const [, dropMesh] of this.groundDropMeshes.entries()) {
+      dropMesh.rotation.y += 0.04;
+      const tx = dropMesh.position.x;
+      const tz = dropMesh.position.z;
+      const terrainY = this.getTerrainHeight(tx, tz);
+      const phase = dropMesh.userData.phase || 0;
+      dropMesh.position.y = terrainY + 0.35 + Math.abs(Math.sin(time * 3.5 + phase)) * 0.14;
     }
 
     // Update Floating Pickups

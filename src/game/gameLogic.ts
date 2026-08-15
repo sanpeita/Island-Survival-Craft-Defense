@@ -14,6 +14,7 @@ import {
   PlayerStats,
   GameQuest,
   InventoryItem,
+  FloatingDrop,
 } from '../types/game';
 import { INITIAL_ENEMY_LIBRARY } from '../data/enemyLibrary';
 import { sounds } from '../audio/soundManager';
@@ -38,6 +39,7 @@ export interface GameState {
     ink: number;
     maxInk: number;
     selectedInkColor: string;
+    lastFullWarningTime?: number;
   };
   time: {
     dayCount: number;
@@ -57,6 +59,7 @@ export interface GameState {
   projectiles: Projectile[];
   inkProjectiles: InkProjectile[];
   inkSplatters: InkSplatter[];
+  groundDrops: FloatingDrop[];
   revealedAreas: RevealedArea[];
   enemyLibrary: Record<EnemyType, EnemyLibraryEntry>;
   quests: GameQuest[];
@@ -69,6 +72,20 @@ export interface GameState {
 }
 
 export const INK_COLORS = ['#ec4899', '#06b6d4', '#84cc16', '#eab308', '#a855f7', '#f97316'];
+
+export const MAX_ITEM_CAPACITY: Record<ResourceType, number> = {
+  wood: 50,
+  stone: 50,
+  leaf: 50,
+  brick: 30,
+  rope: 30,
+  coconut: 20,
+  pumpkin: 30,
+  stew: 15,
+  iron: 30,
+  gold: 9999,
+  gem: 999,
+};
 
 export function createInitialGameState(): GameState {
   const saved = loadSavedGame();
@@ -227,6 +244,7 @@ export function createInitialGameState(): GameState {
       ink: 100,
       maxInk: 100,
       selectedInkColor: '#ec4899',
+      lastFullWarningTime: 0,
     },
     time: {
       dayCount: 1,
@@ -267,6 +285,7 @@ export function createInitialGameState(): GameState {
     projectiles: [],
     inkProjectiles: [],
     inkSplatters: [],
+    groundDrops: [],
     revealedAreas: initialRevealed,
     enemyLibrary: JSON.parse(JSON.stringify(INITIAL_ENEMY_LIBRARY)),
     quests: initialQuests,
@@ -287,9 +306,11 @@ export function loadSavedGame(): GameState | null {
       // Always spawn player right at Fabricator location when loading
       parsed.player.x = 0;
       parsed.player.z = -3.2;
+      parsed.player.lastFullWarningTime = 0;
       parsed.enemies = [];
       parsed.projectiles = [];
       parsed.inkProjectiles = [];
+      parsed.groundDrops = parsed.groundDrops || [];
       parsed.isNearFabricator = true;
       if (!parsed.revealedAreas || parsed.revealedAreas.length === 0) {
         parsed.revealedAreas = [
@@ -338,8 +359,50 @@ export function shootInk(
   spawnFloatingText('💦 INK SHOT!', s.player.x, 2, s.player.z, nextColor);
 }
 
+export function hasSavedGame(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
+export function getSavedGameSummary(): {
+  dayCount: number;
+  baseLevel: number;
+  tierNameJa: string;
+  gold: number;
+  gem: number;
+  timestamp: number;
+} | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as GameState;
+    return {
+      dayCount: parsed.time?.dayCount || 1,
+      baseLevel: parsed.safehouse?.level || 1,
+      tierNameJa: parsed.safehouse?.tierNameJa || 'サバイバルキャンプ旅小屋',
+      gold: parsed.inventory?.gold || parsed.player?.stats?.gold || 0,
+      gem: parsed.inventory?.gem || 0,
+      timestamp: parsed.lastSavedTime || Date.now(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function deleteSavedGame(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (e) {
+    console.warn('Failed to delete saved game', e);
+  }
+}
+
 export function saveGame(state: GameState) {
   try {
+    state.lastSavedTime = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (e) {
     console.warn('Failed to save game to localStorage', e);
@@ -613,7 +676,60 @@ export function updateGameWorld(
     }, 2800);
   }
 
-  // --- 6. SPLATOON-LIKE INK SHOOTING (スプラトゥーン風インクで未踏領域開放) ---
+  // --- 6. REMOVE EXPIRED INK SPLATTERS (一定時間経過で消滅してチカチカ防止) ---
+  s.inkSplatters = s.inkSplatters.filter(sp => {
+    const created = sp.createdAt || now;
+    return (now - created) < (sp.lifetime || 14000);
+  });
+
+  // --- 7. GROUND ITEM PICKUP & "Full" INVENTORY CAPACITY CHECK ---
+  let lastFullTime = s.player.lastFullWarningTime || 0;
+  for (let i = s.groundDrops.length - 1; i >= 0; i--) {
+    const drop = s.groundDrops[i];
+    const dist = Math.hypot(drop.x - s.player.x, drop.z - s.player.z);
+
+    if (dist < 2.4) {
+      const currentCount = s.inventory[drop.resource] || 0;
+      const maxCap = MAX_ITEM_CAPACITY[drop.resource] ?? 50;
+
+      if (currentCount >= maxCap) {
+        // Inventory is full for this item! Show "Full" above player
+        if (now - lastFullTime > 1200) {
+          lastFullTime = now;
+          s.player.lastFullWarningTime = now;
+          spawnFloatingText('Full', s.player.x, 2.6, s.player.z, '#ff4444');
+        }
+      } else {
+        // Can pick up
+        if (dist < 0.85) {
+          const canTake = Math.min(drop.amount, maxCap - currentCount);
+          s.inventory[drop.resource] = currentCount + canTake;
+          if (drop.resource === 'gold') {
+            s.player.stats.gold = (s.player.stats.gold || 0) + canTake;
+          }
+
+          sounds.playCollect();
+          const meta = INVENTORY_META[drop.resource];
+          const icon = meta?.icon || '📦';
+          const color = meta?.color || '#ffd700';
+          spawnFloatingText(`+${canTake} ${icon}`, s.player.x, 2.2, s.player.z, color);
+
+          if (canTake >= drop.amount) {
+            s.groundDrops.splice(i, 1);
+          } else {
+            drop.amount -= canTake;
+          }
+        } else {
+          // Vacuum magnet pull towards player
+          const pullSpeed = 8.0;
+          drop.x += ((s.player.x - drop.x) / dist) * pullSpeed * deltaSeconds;
+          drop.z += ((s.player.z - drop.z) / dist) * pullSpeed * deltaSeconds;
+        }
+      }
+    }
+  }
+
+  // --- 8. SPLATOON-LIKE INK SHOOTING (スプラトゥーン風インクで未踏領域開放) ---
   if (isInkPressed && s.player.ink >= 15) {
     s.player.ink -= 15;
     sounds.playInkShoot();
@@ -639,7 +755,7 @@ export function updateGameWorld(
     spawnFloatingText('💦 INK SHOT!', s.player.x, 2, s.player.z, nextColor);
   }
 
-  // --- 7. INK PROJECTILE PHYSICS & FOG-OF-WAR UNLOCKING ---
+  // --- 9. INK PROJECTILE PHYSICS & FOG-OF-WAR UNLOCKING ---
   const GRAVITY = 18;
   for (let i = s.inkProjectiles.length - 1; i >= 0; i--) {
     const ip = s.inkProjectiles[i];
@@ -653,7 +769,7 @@ export function updateGameWorld(
       sounds.playInkSplat();
       s.inkProjectiles.splice(i, 1);
 
-      // Create Ink Splatter
+      // Create Ink Splatter with lifetime
       const splatRadius = 1.8;
       s.inkSplatters.push({
         id: `splat_${Date.now()}_${Math.random()}`,
@@ -662,6 +778,8 @@ export function updateGameWorld(
         radius: splatRadius,
         color: ip.color,
         rotation: Math.random() * Math.PI * 2,
+        createdAt: now,
+        lifetime: 14000,
       });
       if (s.inkSplatters.length > 25) {
         s.inkSplatters.shift(); // keep max 25 splatters for performance
@@ -962,17 +1080,44 @@ function handleEnemyDefeat(
     s.enemyLibrary[enemy.type].damaged = true;
   }
 
-  // Rewards
+  // Rewards - Spawn physical Ground Drops (黄色いゴールドアイテムやドロップ品)
   const goldReward = enemy.type === 'boss_golem' ? 120 : enemy.type === 'shadow_beast' ? 45 : 20;
   const gemReward = enemy.type === 'boss_golem' ? 3 : Math.random() < 0.35 ? 1 : 0;
+  const now = performance.now();
 
-  s.inventory.gold += goldReward;
-  s.inventory.gem += gemReward;
-  spawnPickupDrop('gold', enemy.x, enemy.z);
-  spawnFloatingText(`+${goldReward}🪙`, enemy.x, 2.2, enemy.z, '#ffc72b');
+  // Spawn yellow item (Gold drop)
+  s.groundDrops.push({
+    id: `drop_gold_${Date.now()}_${Math.random()}`,
+    resource: 'gold',
+    amount: goldReward,
+    x: enemy.x,
+    y: 1.0,
+    z: enemy.z,
+    createdAt: now,
+  });
 
   if (gemReward > 0) {
-    spawnPickupDrop('gem', enemy.x + 0.3, enemy.z + 0.3);
-    spawnFloatingText(`+${gemReward}💎`, enemy.x, 2.5, enemy.z, '#38bdf8');
+    s.groundDrops.push({
+      id: `drop_gem_${Date.now()}_${Math.random()}`,
+      resource: 'gem',
+      amount: gemReward,
+      x: enemy.x + (Math.random() - 0.5) * 0.6,
+      y: 1.0,
+      z: enemy.z + (Math.random() - 0.5) * 0.6,
+      createdAt: now,
+    });
+  }
+
+  if (enemy.type === 'goblin' || enemy.type === 'skeleton') {
+    const bonusRes: ResourceType = enemy.type === 'goblin' ? 'iron' : 'stone';
+    s.groundDrops.push({
+      id: `drop_bonus_${Date.now()}_${Math.random()}`,
+      resource: bonusRes,
+      amount: 1,
+      x: enemy.x + (Math.random() - 0.5) * 0.7,
+      y: 1.0,
+      z: enemy.z + (Math.random() - 0.5) * 0.7,
+      createdAt: now,
+    });
   }
 }

@@ -139,6 +139,8 @@ export interface InkSplatter {
   radius: number;
   color: string;
   rotation: number;
+  createdAt?: number;
+  lifetime?: number;
 }
 
 export interface Projectile {

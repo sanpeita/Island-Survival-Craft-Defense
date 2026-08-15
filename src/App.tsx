@@ -10,11 +10,13 @@ import {
   updateGameWorld,
   saveGame,
   loadSavedGame,
+  deleteSavedGame,
   shootInk,
   GameState,
 } from './game/gameLogic';
 import { CraftingRecipe, ResourceType } from './types/game';
 import { GameHUD } from './components/GameHUD';
+import { TitleScreen } from './components/TitleScreen';
 import { RecipeModal } from './components/RecipeModal';
 import { SafehouseModal } from './components/SafehouseModal';
 import { InventoryModal } from './components/InventoryModal';
@@ -27,6 +29,10 @@ import confetti from 'canvas-confetti';
 export default function App() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<IslandThreeEngine | null>(null);
+
+  const [isPlaying, setIsPlaying] = useState(false);
+  const isPlayingRef = useRef<boolean>(false);
+  isPlayingRef.current = isPlaying;
 
   const [gameState, setGameState] = useState<GameState>(() => {
     const saved = loadSavedGame();
@@ -77,11 +83,15 @@ export default function App() {
 
       const engine = engineRef.current;
       if (engine) {
+        // Only accept controller movement & attacks if actively playing
+        const currentMove = isPlayingRef.current ? inputMoveRef.current : { x: 0, y: 0 };
+        const currentAttack = isPlayingRef.current ? isAttackPressedRef.current : false;
+
         const { updatedState } = updateGameWorld(
           gameStateRef.current,
           deltaSeconds,
-          inputMoveRef.current,
-          isAttackPressedRef.current,
+          currentMove,
+          currentAttack,
           false,
           (text, x, y, z, color) => engine.spawnFloatingText(text, x, y, z, color),
           (res, x, z) => engine.spawnPickupDrop(res, x, z)
@@ -95,6 +105,7 @@ export default function App() {
         engine.syncArrows(updatedState.projectiles);
         engine.syncInkProjectiles(updatedState.inkProjectiles);
         engine.syncInkSplatters(updatedState.inkSplatters);
+        engine.syncGroundDrops(updatedState.groundDrops);
         engine.updateFogOfWar(updatedState.revealedAreas);
 
         // Update Hero 3D Pose
@@ -102,28 +113,32 @@ export default function App() {
           updatedState.player.x,
           updatedState.player.z,
           updatedState.player.rotation,
-          updatedState.player.isMoving,
-          updatedState.player.isAttacking,
+          isPlayingRef.current ? updatedState.player.isMoving : false,
+          isPlayingRef.current ? updatedState.player.isAttacking : false,
           updatedState.player.stats.equippedTool
         );
 
         // In-world 3D Cooking pot interaction
-        const pumpkinCount = updatedState.inventory.pumpkin || 0;
-        const distToPot = Math.hypot(updatedState.player.x - (-4), updatedState.player.z - 3);
-        if (distToPot < 2.0 && pumpkinCount >= 5 && isAttackPressedRef.current) {
-          updatedState.inventory.pumpkin -= 5;
-          updatedState.inventory.stew = (updatedState.inventory.stew || 0) + 1;
-          sounds.playCraftSuccess();
-          engine.spawnFloatingText('🍲 STEW COOKED!', -4, 2.5, 3, '#db6518');
+        if (isPlayingRef.current) {
+          const pumpkinCount = updatedState.inventory.pumpkin || 0;
+          const distToPot = Math.hypot(updatedState.player.x - (-4), updatedState.player.z - 3);
+          if (distToPot < 2.0 && pumpkinCount >= 5 && isAttackPressedRef.current) {
+            updatedState.inventory.pumpkin -= 5;
+            updatedState.inventory.stew = (updatedState.inventory.stew || 0) + 1;
+            sounds.playCraftSuccess();
+            engine.spawnFloatingText('🍲 STEW COOKED!', -4, 2.5, 3, '#db6518');
+          }
         }
 
         setGameState(updatedState);
 
-        // Periodic auto save to LocalStorage
-        saveTimer += deltaSeconds;
-        if (saveTimer > 5) {
-          saveTimer = 0;
-          saveGame(updatedState);
+        // Periodic auto save to LocalStorage (only when actively playing)
+        if (isPlayingRef.current) {
+          saveTimer += deltaSeconds;
+          if (saveTimer > 5) {
+            saveTimer = 0;
+            saveGame(updatedState);
+          }
         }
       }
 
@@ -132,6 +147,62 @@ export default function App() {
 
     animationId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationId);
+  }, []);
+
+  // --- TITLE MENU HANDLERS ---
+  const handleStartNewGame = useCallback(() => {
+    deleteSavedGame();
+    const freshState = createInitialGameState();
+    setGameState(freshState);
+    gameStateRef.current = freshState;
+
+    if (engineRef.current) {
+      engineRef.current.syncResourceNodes(freshState.resourceNodes);
+      engineRef.current.syncStructures(freshState.structures);
+      engineRef.current.syncEnemies([]);
+      engineRef.current.syncArrows([]);
+      engineRef.current.syncInkProjectiles([]);
+      engineRef.current.syncInkSplatters([]);
+      engineRef.current.syncGroundDrops([]);
+      engineRef.current.updateFogOfWar(freshState.revealedAreas);
+      engineRef.current.spawnFloatingText('🏝️ NEW ADVENTURE STARTED!', 0, 3, -3.2, '#ffd700');
+    }
+
+    saveGame(freshState);
+    setIsPlaying(true);
+  }, []);
+
+  const handleLoadGame = useCallback(() => {
+    const loaded = loadSavedGame() || createInitialGameState();
+    setGameState(loaded);
+    gameStateRef.current = loaded;
+
+    if (engineRef.current) {
+      engineRef.current.syncResourceNodes(loaded.resourceNodes);
+      engineRef.current.syncStructures(loaded.structures);
+      engineRef.current.syncEnemies(loaded.enemies || []);
+      engineRef.current.syncArrows(loaded.projectiles || []);
+      engineRef.current.syncInkProjectiles(loaded.inkProjectiles || []);
+      engineRef.current.syncInkSplatters(loaded.inkSplatters || []);
+      engineRef.current.syncGroundDrops(loaded.groundDrops || []);
+      engineRef.current.updateFogOfWar(loaded.revealedAreas);
+      engineRef.current.spawnFloatingText(`📖 DAY ${loaded.time.dayCount} RESUMED!`, loaded.player.x, 3, loaded.player.z, '#38bdf8');
+    }
+
+    setIsPlaying(true);
+  }, []);
+
+  const handleReturnToTitle = useCallback(() => {
+    // Save current game state before exiting to title
+    saveGame(gameStateRef.current);
+    inputMoveRef.current = { x: 0, y: 0 };
+    isAttackPressedRef.current = false;
+    setIsRecipeOpen(false);
+    setIsSafehouseOpen(false);
+    setIsInventoryOpen(false);
+    setIsEnemyLibraryOpen(false);
+    setIsHelpOpen(false);
+    setIsPlaying(false);
   }, []);
 
   // --- CONTROLLER HANDLERS ---
@@ -306,20 +377,29 @@ export default function App() {
         {/* Three.js 3D WebGL Canvas Mount */}
         <div ref={canvasContainerRef} className="absolute inset-0 w-full h-full" />
 
-        {/* Game HUD Overlay */}
-        <GameHUD
-          gameState={gameState}
-          onMove={handleMove}
-          onAttack={handleAttack}
-          onShootInk={handleShootInk}
-          onOpenCrafting={() => setIsRecipeOpen(true)}
-          onOpenSafehouse={() => setIsSafehouseOpen(true)}
-          onOpenInventory={() => setIsInventoryOpen(true)}
-          onOpenEnemyLibrary={() => setIsEnemyLibraryOpen(true)}
-          onOpenHelp={() => setIsHelpOpen(true)}
-          onQuickEat={handleQuickEat}
-          onPinRecipeClick={handlePinRecipe}
-        />
+        {/* Title Screen or In-Game HUD */}
+        {!isPlaying ? (
+          <TitleScreen
+            onStartNewGame={handleStartNewGame}
+            onLoadGame={handleLoadGame}
+            onOpenHelp={() => setIsHelpOpen(true)}
+          />
+        ) : (
+          <GameHUD
+            gameState={gameState}
+            onMove={handleMove}
+            onAttack={handleAttack}
+            onShootInk={handleShootInk}
+            onOpenCrafting={() => setIsRecipeOpen(true)}
+            onOpenSafehouse={() => setIsSafehouseOpen(true)}
+            onOpenInventory={() => setIsInventoryOpen(true)}
+            onOpenEnemyLibrary={() => setIsEnemyLibraryOpen(true)}
+            onOpenHelp={() => setIsHelpOpen(true)}
+            onQuickEat={handleQuickEat}
+            onPinRecipeClick={handlePinRecipe}
+            onReturnToTitle={handleReturnToTitle}
+          />
+        )}
 
         {/* Modals */}
         <RecipeModal

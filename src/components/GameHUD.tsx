@@ -21,6 +21,7 @@ import {
   Droplets,
   Save,
   Sparkles,
+  LogOut,
 } from 'lucide-react';
 
 interface GameHUDProps {
@@ -35,6 +36,7 @@ interface GameHUDProps {
   onOpenHelp: () => void;
   onQuickEat: () => void;
   onPinRecipeClick: (recipeId: string) => void;
+  onReturnToTitle?: () => void;
 }
 
 export const GameHUD: React.FC<GameHUDProps> = ({
@@ -49,6 +51,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   onOpenHelp,
   onQuickEat,
   onPinRecipeClick,
+  onReturnToTitle,
 }) => {
   const { player, time, inventory, safehouse, quests, activeQuestId, pinnedRecipeId, isNearFabricator, saveNotification, enemyLibrary } = gameState;
   const isSoundActive = sounds.isEnabled();
@@ -191,12 +194,13 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           </div>
         </div>
 
-        {/* Top Right: Sound & Help */}
+        {/* Top Right: Sound, Help & Title */}
         <div className="flex items-center gap-1">
           <button
             id="toggle-sound-btn"
             onClick={() => sounds.toggleSound()}
             className="w-8 h-8 rounded-xl bg-[#121212]/90 hover:bg-[#1a1a1a] active:scale-95 backdrop-blur-md border border-[#333] flex items-center justify-center text-[#e0e0e0] hover:border-amber-500/50 transition-all shadow-lg cursor-pointer"
+            title="サウンド切替"
           >
             {isSoundActive ? <Volume2 className="w-3.5 h-3.5 text-amber-400" /> : <VolumeX className="w-3.5 h-3.5 text-gray-500" />}
           </button>
@@ -204,9 +208,20 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             id="help-btn"
             onClick={onOpenHelp}
             className="w-8 h-8 rounded-xl bg-[#121212]/90 hover:bg-[#1a1a1a] active:scale-95 backdrop-blur-md border border-[#333] flex items-center justify-center text-[#e0e0e0] hover:border-amber-500/50 transition-all shadow-lg cursor-pointer"
+            title="ヘルプ"
           >
             <HelpCircle className="w-3.5 h-3.5 text-gray-300" />
           </button>
+          {onReturnToTitle && (
+            <button
+              id="return-title-btn"
+              onClick={onReturnToTitle}
+              className="w-8 h-8 rounded-xl bg-[#121212]/90 hover:bg-red-950/80 active:scale-95 backdrop-blur-md border border-[#333] hover:border-red-500/50 flex items-center justify-center text-slate-300 hover:text-red-300 transition-all shadow-lg cursor-pointer"
+              title="タイトル画面へ戻る"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
