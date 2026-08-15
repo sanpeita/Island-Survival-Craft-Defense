@@ -1,6 +1,6 @@
 import React from 'react';
 import { ResourceType } from '../types/game';
-import { INVENTORY_META } from '../game/gameLogic';
+import { INVENTORY_META, MAX_ITEM_CAPACITY } from '../game/gameLogic';
 import { sounds } from '../audio/soundManager';
 import { X, Utensils, Sparkles } from 'lucide-react';
 
@@ -73,6 +73,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             {items.map(resId => {
               const meta = INVENTORY_META[resId];
               const count = inventory[resId] || 0;
+              const maxCap = MAX_ITEM_CAPACITY[resId] ?? 999;
+              const isFull = count >= maxCap;
               const isFood = resId === 'stew' || resId === 'coconut' || resId === 'pumpkin';
 
               return (
@@ -91,7 +93,9 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                   </div>
 
                   <div className="flex flex-col items-end gap-1">
-                    <span className="font-mono font-bold text-sm text-amber-400">{count}</span>
+                    <span className={`font-mono font-bold text-sm ${isFull ? 'text-red-400' : 'text-amber-400'}`}>
+                      {count}/{maxCap}
+                    </span>
                     {isFood && count > 0 && (
                       <button
                         onClick={() => handleEat(resId)}
