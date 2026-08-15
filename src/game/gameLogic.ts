@@ -318,7 +318,7 @@ export function shootInk(
   sounds.playInkShoot();
 
   const rot = s.player.rotation;
-  const shootSpeed = 13.5;
+  const shootSpeed = 6.2;
   const nextColor = INK_COLORS[Math.floor(Math.random() * INK_COLORS.length)];
   s.player.selectedInkColor = nextColor;
 
@@ -328,7 +328,7 @@ export function shootInk(
     y: 1.2,
     z: s.player.z + Math.cos(rot) * 0.5,
     vx: Math.sin(rot) * shootSpeed,
-    vy: 5.5,
+    vy: 3.2,
     vz: Math.cos(rot) * shootSpeed,
     color: nextColor,
     radius: 0.25,
@@ -619,7 +619,7 @@ export function updateGameWorld(
     sounds.playInkShoot();
 
     const rot = s.player.rotation;
-    const shootSpeed = 13.5;
+    const shootSpeed = 6.2;
     const nextColor = INK_COLORS[Math.floor(Math.random() * INK_COLORS.length)];
     s.player.selectedInkColor = nextColor;
 
@@ -629,7 +629,7 @@ export function updateGameWorld(
       y: 1.2,
       z: s.player.z + Math.cos(rot) * 0.5,
       vx: Math.sin(rot) * shootSpeed,
-      vy: 5.5, // arc upwards
+      vy: 3.2, // arc upwards
       vz: Math.cos(rot) * shootSpeed,
       color: nextColor,
       radius: 0.25,
@@ -654,7 +654,7 @@ export function updateGameWorld(
       s.inkProjectiles.splice(i, 1);
 
       // Create Ink Splatter
-      const splatRadius = 2.4;
+      const splatRadius = 1.8;
       s.inkSplatters.push({
         id: `splat_${Date.now()}_${Math.random()}`,
         x: ip.x,
@@ -668,7 +668,7 @@ export function updateGameWorld(
       }
 
       // UNLOCK FOG OF WAR (未踏領域を開放)
-      const revealRadius = 7.2;
+      const revealRadius = 4.6;
       s.revealedAreas.push({
         x: ip.x,
         z: ip.z,

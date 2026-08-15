@@ -58,37 +58,47 @@ const materials = {
   shadowBeastGlow: new THREE.MeshBasicMaterial({ color: 0xfacc15 }),
 };
 
-// --- SURVIVAL CAMP LODGE (四方が壁と扉で囲まれたシンプルな旅小屋 & SafeArea) ---
+// --- SURVIVAL CAMP LODGE (四方が壁と扉で囲まれた中が見える開放型旅小屋 & SafeArea) ---
 export function createSurvivalCabinMesh(): THREE.Group {
   const group = new THREE.Group();
 
-  // Cabin dimensions: Width 5.6m, Depth 4.8m, Height 2.4m
+  // Cabin dimensions: Width 5.6m, Depth 4.8m, Height 1.9m
   const woodPlankDark = new THREE.MeshStandardMaterial({ color: 0x7c4a27, roughness: 0.7 });
   const woodBeamMat = new THREE.MeshStandardMaterial({ color: 0x543217, roughness: 0.8 });
   const stoneFoundationMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9 });
+  const fabricMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.8 });
+  const pillowMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.9 });
+  const rugMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.85 });
 
   // 1. Stone Foundation Slab
-  const floorGeo = new THREE.BoxGeometry(5.8, 0.3, 5.0);
+  const floorGeo = new THREE.BoxGeometry(5.8, 0.25, 5.0);
   const floorMesh = new THREE.Mesh(floorGeo, stoneFoundationMat);
-  floorMesh.position.y = 0.15;
+  floorMesh.position.y = 0.12;
   floorMesh.receiveShadow = true;
   group.add(floorMesh);
 
   // Interior Wood Flooring Planks
   const interiorFloor = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.05, 4.6), materials.woodPlank);
-  interiorFloor.position.y = 0.32;
+  interiorFloor.position.y = 0.26;
   interiorFloor.receiveShadow = true;
   group.add(interiorFloor);
 
-  // 2. Four Corner Timber Beams
+  // Decorative Interior Woven Rug (Center-South)
+  const rugGeo = new THREE.BoxGeometry(3.0, 0.02, 2.2);
+  const rugMesh = new THREE.Mesh(rugGeo, rugMat);
+  rugMesh.position.set(0, 0.28, 0.2);
+  rugMesh.receiveShadow = true;
+  group.add(rugMesh);
+
+  // 2. Four Corner Timber Beams & Perimeter Top Frame
   const cornerPositions = [
-    [-2.7, 1.4, -2.3],
-    [2.7, 1.4, -2.3],
-    [-2.7, 1.4, 2.3],
-    [2.7, 1.4, 2.3],
+    [-2.7, 1.0, -2.3],
+    [2.7, 1.0, -2.3],
+    [-2.7, 1.0, 2.3],
+    [2.7, 1.0, 2.3],
   ];
   for (const [cx, cy, cz] of cornerPositions) {
-    const postGeo = new THREE.BoxGeometry(0.35, 2.2, 0.35);
+    const postGeo = new THREE.BoxGeometry(0.32, 1.8, 0.32);
     const post = new THREE.Mesh(postGeo, woodBeamMat);
     post.position.set(cx, cy, cz);
     post.castShadow = true;
@@ -96,85 +106,129 @@ export function createSurvivalCabinMesh(): THREE.Group {
     group.add(post);
   }
 
-  // 3. Walls
-  // North Wall (Back) - Solid
-  const northWall = new THREE.Mesh(new THREE.BoxGeometry(5.4, 1.9, 0.25), woodPlankDark);
-  northWall.position.set(0, 1.25, -2.3);
+  // Top Perimeter Timber Beams (Defines lodge structure while keeping top-down view clear)
+  const beamNorth = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.18, 0.22), woodBeamMat);
+  beamNorth.position.set(0, 1.9, -2.3);
+  group.add(beamNorth);
+
+  const beamWest = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 4.6), woodBeamMat);
+  beamWest.position.set(-2.7, 1.9, 0);
+  group.add(beamWest);
+
+  const beamEast = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 4.6), woodBeamMat);
+  beamEast.position.set(2.7, 1.9, 0);
+  group.add(beamEast);
+
+  const beamSouthL = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.18, 0.22), woodBeamMat);
+  beamSouthL.position.set(-1.8, 1.9, 2.3);
+  group.add(beamSouthL);
+
+  const beamSouthR = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.18, 0.22), woodBeamMat);
+  beamSouthR.position.set(1.8, 1.9, 2.3);
+  group.add(beamSouthR);
+
+  // Cross Corner Rafters (Rustic Timber Aesthetics)
+  const rafterNW = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 0.12), woodBeamMat);
+  rafterNW.position.set(-2.2, 1.9, -1.8);
+  rafterNW.rotation.y = Math.PI / 4;
+  group.add(rafterNW);
+
+  const rafterNE = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 0.12), woodBeamMat);
+  rafterNE.position.set(2.2, 1.9, -1.8);
+  rafterNE.rotation.y = -Math.PI / 4;
+  group.add(rafterNE);
+
+  // 3. Cutaway Walls (Low profile to allow clear visibility into the cabin interior)
+  // North Wall (Back)
+  const northWall = new THREE.Mesh(new THREE.BoxGeometry(5.4, 1.2, 0.22), woodPlankDark);
+  northWall.position.set(0, 0.85, -2.3);
   northWall.castShadow = true;
   northWall.receiveShadow = true;
   group.add(northWall);
 
-  // East Wall (Right) - Solid with a small window cutout/sill
-  const eastWall = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.9, 4.6), woodPlankDark);
-  eastWall.position.set(2.7, 1.25, 0);
+  // East Wall (Right)
+  const eastWall = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.1, 4.6), woodPlankDark);
+  eastWall.position.set(2.7, 0.8, 0);
   eastWall.castShadow = true;
   eastWall.receiveShadow = true;
   group.add(eastWall);
 
-  // West Wall (Left) - Solid
-  const westWall = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.9, 4.6), woodPlankDark);
-  westWall.position.set(-2.7, 1.25, 0);
+  // West Wall (Left)
+  const westWall = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.1, 4.6), woodPlankDark);
+  westWall.position.set(-2.7, 0.8, 0);
   westWall.castShadow = true;
   westWall.receiveShadow = true;
   group.add(westWall);
 
-  // South Wall (Front) - Left and Right wall segments with open doorway in center
-  const southWallL = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.9, 0.25), woodPlankDark);
-  southWallL.position.set(-1.8, 1.25, 2.3);
+  // South Wall (Front) - Low waist-high segments leaving wide open doorway
+  const southWallL = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.8, 0.22), woodPlankDark);
+  southWallL.position.set(-1.8, 0.65, 2.3);
   southWallL.castShadow = true;
   southWallL.receiveShadow = true;
   group.add(southWallL);
 
-  const southWallR = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.9, 0.25), woodPlankDark);
-  southWallR.position.set(1.8, 1.25, 2.3);
+  const southWallR = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.8, 0.22), woodPlankDark);
+  southWallR.position.set(1.8, 0.65, 2.3);
   southWallR.castShadow = true;
   southWallR.receiveShadow = true;
   group.add(southWallR);
 
-  // Door lintel beam over the open doorway
-  const doorHeader = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.35, 0.35), woodBeamMat);
-  doorHeader.position.set(0, 2.05, 2.3);
-  doorHeader.castShadow = true;
-  group.add(doorHeader);
+  // 4. Interior Furniture & Survival Gear
+  // Survival Bed / Cot (North-West corner)
+  const cotBase = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.2, 2.2), woodBeamMat);
+  cotBase.position.set(-1.8, 0.38, -1.0);
+  cotBase.castShadow = true;
+  group.add(cotBase);
 
-  // 4. Pitched Wooden Roof
-  const roofL = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.18, 5.4), materials.woodPlank);
-  roofL.position.set(-1.4, 2.65, 0);
-  roofL.rotation.z = Math.PI / 8;
-  roofL.castShadow = true;
-  group.add(roofL);
+  const cotMattress = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.12, 2.0), fabricMat);
+  cotMattress.position.set(-1.8, 0.5, -1.0);
+  group.add(cotMattress);
 
-  const roofR = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.18, 5.4), materials.woodPlank);
-  roofR.position.set(1.4, 2.65, 0);
-  roofR.rotation.z = -Math.PI / 8;
-  roofR.castShadow = true;
-  group.add(roofR);
+  const cotPillow = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 0.5), pillowMat);
+  cotPillow.position.set(-1.8, 0.58, -1.7);
+  group.add(cotPillow);
 
-  // Front & Back Gable Triangles
-  const gableMat = woodPlankDark;
-  const gableFront = new THREE.Mesh(new THREE.ConeGeometry(2.7, 0.9, 4), gableMat);
-  gableFront.position.set(0, 2.5, 2.3);
-  gableFront.rotation.y = Math.PI / 4;
-  group.add(gableFront);
+  // Supply Storage Crates (North-East corner)
+  const crateMat = new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.8 });
+  const crate1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.9), crateMat);
+  crate1.position.set(1.8, 0.56, -1.4);
+  crate1.castShadow = true;
+  group.add(crate1);
 
-  const gableBack = new THREE.Mesh(new THREE.ConeGeometry(2.7, 0.9, 4), gableMat);
-  gableBack.position.set(0, 2.5, -2.3);
-  gableBack.rotation.y = Math.PI / 4;
-  group.add(gableBack);
+  const crate2 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.5, 0.7), crateMat);
+  crate2.position.set(1.85, 1.05, -1.35);
+  crate2.rotation.y = 0.25;
+  crate2.castShadow = true;
+  group.add(crate2);
 
-  // Entrance Step & Welcome Torch Lantern
+  // Survival Tool Shelf / Workbench (East Wall)
+  const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 1.6), woodPlankDark);
+  shelf.position.set(2.2, 0.6, 0.6);
+  shelf.castShadow = true;
+  group.add(shelf);
+
+  // Cozy Interior Wall Lantern
+  const intLantern = createMiniLantern();
+  intLantern.position.set(0, 1.5, -2.1);
+  group.add(intLantern);
+
+  const cabinLight = new THREE.PointLight(0xffbe5c, 1.2, 5, 2);
+  cabinLight.position.set(0, 1.4, -0.5);
+  group.add(cabinLight);
+
+  // Entrance Step
   const stepGeo = new THREE.BoxGeometry(1.8, 0.12, 0.8);
   const stepMesh = new THREE.Mesh(stepGeo, stoneFoundationMat);
   stepMesh.position.set(0, 0.06, 2.7);
   group.add(stepMesh);
 
-  // Warm Cabin Door Lanterns
+  // Warm Cabin Porch Lanterns
   const porchLanternL = createMiniLantern();
-  porchLanternL.position.set(-1.0, 1.8, 2.5);
+  porchLanternL.position.set(-1.0, 1.4, 2.4);
   group.add(porchLanternL);
 
   const porchLanternR = createMiniLantern();
-  porchLanternR.position.set(1.0, 1.8, 2.5);
+  porchLanternR.position.set(1.0, 1.4, 2.4);
   group.add(porchLanternR);
 
   // 5. SafeArea Barrier Perimeter (Subtle glowing protective dome / ring)
