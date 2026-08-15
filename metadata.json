@@ -1,0 +1,6 @@
+{
+  "name": "Island Survival Craft & Defense",
+  "description": "An offline 3D island survival crafting and safehouse defense game optimized for mobile with day/night cycles, resource gathering, recipe management, and raid defense.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
