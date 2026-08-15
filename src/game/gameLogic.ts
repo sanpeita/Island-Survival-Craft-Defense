@@ -70,6 +70,7 @@ export interface GameState {
   pinnedRecipeId: string | null;
   islandCleared: boolean;
   isNearFabricator: boolean;
+  autoMode: boolean;
   lastSavedTime: number;
   saveNotification: string | null;
 }
@@ -244,8 +245,8 @@ export function createInitialGameState(): GameState {
       },
       isMoving: false,
       isAttacking: false,
-      ink: 100,
-      maxInk: 100,
+      ink: 45,
+      maxInk: 45,
       selectedInkColor: '#ec4899',
       lastFullWarningTime: 0,
     },
@@ -302,6 +303,7 @@ export function createInitialGameState(): GameState {
     pinnedRecipeId: 'crossbow_turret',
     islandCleared: false,
     isNearFabricator: true,
+    autoMode: true,
     lastSavedTime: Date.now(),
     saveNotification: null,
   };
@@ -321,6 +323,7 @@ export function loadSavedGame(): GameState | null {
       parsed.inkProjectiles = [];
       parsed.groundDrops = parsed.groundDrops || [];
       parsed.isNearFabricator = true;
+      parsed.autoMode = parsed.autoMode ?? true;
       if (!parsed.placeableStructures) {
         parsed.placeableStructures = {
           barricade: 1,
@@ -976,6 +979,20 @@ export function updateGameWorld(
 
       spawnFloatingText('✨ 領域開放 (Unfogged)!', ip.x, 1.8, ip.z, ip.color);
 
+      // Ink territory quest progress (インクで未踏領域を開放するミッション)
+      for (const q of s.quests) {
+        if (q.targetType === 'craft' && q.targetId === 'ink' && !q.completed) {
+          q.currentCount += 1;
+          if (q.currentCount >= q.requiredCount) {
+            q.completed = true;
+            s.inventory.gold += q.rewardGold;
+            s.inventory.gem += q.rewardGem;
+            sounds.playCraftSuccess();
+            spawnFloatingText(`🏆 QUEST COMPLETE: ${q.titleJa}!`, s.player.x, 2.8, s.player.z, '#48bb32');
+          }
+        }
+      }
+
       // Damage enemies in splash radius
       for (let eIdx = s.enemies.length - 1; eIdx >= 0; eIdx--) {
         const enemy = s.enemies[eIdx];
@@ -1007,9 +1024,27 @@ export function updateGameWorld(
   }
 
   // --- 8. PLAYER GATHERING & ATTACKING ---
-  s.player.isAttacking = isAttackPressed;
+  let effectiveAttack = isAttackPressed;
+  if (!effectiveAttack && s.autoMode) {
+    for (const node of s.resourceNodes) {
+      if (node.isDepleted) continue;
+      if (Math.hypot(node.x - s.player.x, node.z - s.player.z) < 2.5) {
+        effectiveAttack = true;
+        break;
+      }
+    }
+    if (!effectiveAttack) {
+      for (const enemy of s.enemies) {
+        if (Math.hypot(enemy.x - s.player.x, enemy.z - s.player.z) < 2.5) {
+          effectiveAttack = true;
+          break;
+        }
+      }
+    }
+  }
+  s.player.isAttacking = effectiveAttack;
 
-  if (isAttackPressed) {
+  if (effectiveAttack) {
     const lastAttack = s.player.lastAttackTime || 0;
     const canSwing = now - lastAttack >= 220; // Tactile swing rhythm (~4.5 hits/sec)
 
@@ -1376,6 +1411,12 @@ export function updateGameWorld(
         }
       }
     }
+  }
+
+  // Advance active quest to next uncompleted quest (次のミッションへ自動進行)
+  const nextQuest = s.quests.find(q => !q.completed);
+  if (nextQuest) {
+    s.activeQuestId = nextQuest.id;
   }
 
   return { updatedState: s, soundEffects: sfx };

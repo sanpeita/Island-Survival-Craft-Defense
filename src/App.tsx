@@ -154,6 +154,7 @@ export default function App() {
   const handleStartNewGame = useCallback(() => {
     deleteSavedGame();
     const freshState = createInitialGameState();
+    freshState.autoMode = gameStateRef.current.autoMode;
     setGameState(freshState);
     gameStateRef.current = freshState;
 
@@ -191,6 +192,14 @@ export default function App() {
     }
 
     setIsPlaying(true);
+  }, []);
+
+  const handleAutoModeChange = useCallback((enabled: boolean) => {
+    setGameState(prev => {
+      const next = { ...prev, autoMode: enabled };
+      gameStateRef.current = next;
+      return next;
+    });
   }, []);
 
   const handleReturnToTitle = useCallback(() => {
@@ -389,6 +398,8 @@ export default function App() {
             onStartNewGame={handleStartNewGame}
             onLoadGame={handleLoadGame}
             onOpenHelp={() => setIsHelpOpen(true)}
+            autoMode={gameState.autoMode}
+            onAutoModeChange={handleAutoModeChange}
           />
         ) : (
           <GameHUD

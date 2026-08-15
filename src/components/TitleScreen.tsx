@@ -15,6 +15,7 @@ import {
   Shield,
   Clock,
   X,
+  Zap,
 } from 'lucide-react';
 import { getSavedGameSummary, hasSavedGame } from '../game/gameLogic';
 import { sounds } from '../audio/soundManager';
@@ -23,12 +24,16 @@ interface TitleScreenProps {
   onStartNewGame: () => void;
   onLoadGame: () => void;
   onOpenHelp: () => void;
+  autoMode: boolean;
+  onAutoModeChange: (enabled: boolean) => void;
 }
 
 export const TitleScreen: React.FC<TitleScreenProps> = ({
   onStartNewGame,
   onLoadGame,
   onOpenHelp,
+  autoMode,
+  onAutoModeChange,
 }) => {
   const [modalType, setModalType] = useState<'none' | 'new_game' | 'load_game' | 'no_save'>('none');
   const [soundEnabled, setSoundEnabled] = useState(() => sounds.isEnabled());
@@ -80,6 +85,21 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              sounds.playCollect();
+              onAutoModeChange(!autoMode);
+            }}
+            className={`flex items-center gap-1.5 h-10 px-3.5 rounded-full border text-xs font-bold transition-all shadow-lg active:scale-95 ${
+              autoMode
+                ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 border-emerald-300/50 text-white shadow-emerald-500/25'
+                : 'bg-white/10 hover:bg-white/20 border-white/15 text-slate-300'
+            }`}
+            title={autoMode ? 'オートON: 敵に触れたら自動攻撃・資源に触れたら自動収穫' : 'オートOFF'}
+          >
+            <Zap size={15} className={autoMode ? 'text-white' : 'text-slate-400'} />
+            <span>オート{autoMode ? 'ON' : 'OFF'}</span>
+          </button>
           <button
             onClick={toggleAudio}
             className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 border border-white/15 flex items-center justify-center text-white transition-all shadow-lg"

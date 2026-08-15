@@ -61,6 +61,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   const { player, time, inventory, safehouse, quests, activeQuestId, pinnedRecipeId, isNearFabricator, saveNotification, enemyLibrary, placeableStructures } = gameState;
   const isSoundActive = sounds.isEnabled();
   const [showFullInventory, setShowFullInventory] = useState(false);
+  const [showQuestList, setShowQuestList] = useState(false);
 
   const activeQuest = quests.find(q => q.id === activeQuestId) || quests[0];
   const pinnedRecipe = CRAFTING_RECIPES.find(r => r.id === pinnedRecipeId);
@@ -217,31 +218,90 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         </div>
       )}
 
-      {/* --- OBJECTIVE PROMPT --- */}
-      {activeQuest && (
-        <div className="w-full flex justify-center mt-1 pointer-events-auto">
-          <div
-            onClick={onOpenCrafting}
-            className="group px-3 py-1 bg-[#121212]/95 backdrop-blur-md border border-[#333] hover:border-amber-500/60 rounded-xl shadow-2xl flex items-center gap-2 cursor-pointer active:scale-98 transition-all max-w-[340px]"
-          >
-            <div className="w-5 h-5 rounded-lg bg-amber-950/40 border border-amber-900/60 flex items-center justify-center text-[10px] text-amber-400 shrink-0">
-              🎯
-            </div>
-            <div className="flex flex-col overflow-hidden">
-              <span className="text-[8px] uppercase tracking-wider text-amber-500 font-bold leading-tight">
-                Objective
-              </span>
-              <span className="text-[11px] font-serif italic text-[#e0e0e0] leading-tight truncate group-hover:text-amber-300 transition-colors">
-                {activeQuest.titleJa} ({activeQuest.currentCount}/{activeQuest.requiredCount})
-              </span>
-            </div>
-            <Search className="w-3 h-3 text-gray-500 ml-auto shrink-0 group-hover:text-amber-400 transition-colors" />
+      {/* --- QUEST TRACKER --- */}
+      {quests.length > 0 && (
+        <div className="w-full flex flex-col items-center mt-1 pointer-events-auto">
+          <div className="flex items-center gap-1.5">
+            {activeQuest && (
+              <div
+                onClick={onOpenCrafting}
+                className={`group px-3 py-1 bg-[#121212]/95 backdrop-blur-md border rounded-xl shadow-2xl flex items-center gap-2 cursor-pointer active:scale-98 transition-all max-w-[300px] ${
+                  activeQuest.completed ? 'border-emerald-500/50' : 'border-[#333] hover:border-amber-500/60'
+                }`}
+                title="クラフト画面を開く"
+              >
+                <div className="w-5 h-5 rounded-lg bg-amber-950/40 border border-amber-900/60 flex items-center justify-center text-[10px] shrink-0">
+                  {activeQuest.completed ? '✅' : '🎯'}
+                </div>
+                <div className="flex flex-col overflow-hidden">
+                  <span className="text-[8px] uppercase tracking-wider text-amber-500 font-bold leading-tight">
+                    Objective
+                  </span>
+                  {activeQuest.completed ? (
+                    <span className="text-[11px] font-serif italic text-emerald-300 leading-tight truncate">
+                      達成済み: {activeQuest.titleJa}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-serif italic text-[#e0e0e0] leading-tight truncate group-hover:text-amber-300 transition-colors">
+                      {activeQuest.titleJa} ({activeQuest.currentCount}/{activeQuest.requiredCount})
+                    </span>
+                  )}
+                </div>
+                <Search className="w-3 h-3 text-gray-500 ml-auto shrink-0 group-hover:text-amber-400 transition-colors" />
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowQuestList(!showQuestList)}
+              className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-[#121212]/95 backdrop-blur-md border border-[#333] hover:border-amber-500/50 text-[10px] font-bold text-amber-400 transition-all cursor-pointer"
+              title="ミッション一覧"
+            >
+              {showQuestList ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              一覧
+            </button>
           </div>
+
+          {/* Quest List Dropdown */}
+          {showQuestList && (
+            <div className="mt-1.5 w-full max-w-[340px] bg-[#121212]/95 backdrop-blur-md border border-[#333] rounded-xl shadow-2xl overflow-hidden animate-fade-in">
+              {quests.map(q => (
+                <div
+                  key={q.id}
+                  className={`flex items-center justify-between gap-2 px-2.5 py-1.5 border-b border-[#222] last:border-b-0 ${
+                    q.completed ? 'bg-emerald-950/20' : q.id === activeQuest?.id ? 'bg-amber-950/10' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[10px] shrink-0">{q.completed ? '✅' : '🎯'}</span>
+                    <span
+                      className={`text-[10px] leading-tight truncate ${
+                        q.completed
+                          ? 'text-gray-500 line-through'
+                          : q.id === activeQuest?.id
+                            ? 'text-amber-300 font-bold'
+                            : 'text-[#e0e0e0]'
+                      }`}
+                    >
+                      {q.titleJa}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={`text-[9px] font-mono ${q.completed ? 'text-emerald-400' : 'text-gray-400'}`}>
+                      {q.completed ? '達成済み' : `${q.currentCount}/${q.requiredCount}`}
+                    </span>
+                    <span className="text-[8px] font-mono text-amber-400/80 whitespace-nowrap">
+                      🪙{q.rewardGold} 💎{q.rewardGem}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* --- RIGHT COMPACT RESOURCE SCAN --- */}
-      <div className="absolute right-2 sm:right-4 top-16 sm:top-20 flex flex-col items-end gap-1 pointer-events-auto">
+      <div className="absolute right-2 sm:right-4 top-[92px] sm:top-24 flex flex-col items-end gap-1 pointer-events-auto">
         <button
           onClick={() => setShowFullInventory(!showFullInventory)}
           className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#121212]/80 border border-[#2a2a2a] text-[8px] uppercase tracking-wider text-gray-400 font-mono hover:text-amber-400 transition-colors cursor-pointer"
