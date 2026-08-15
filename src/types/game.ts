@@ -60,6 +60,8 @@ export interface SafehouseState {
   autoHealRate: number;
 }
 
+export type PlaceableStructureType = 'barricade' | 'spikes' | 'turret' | 'lantern';
+
 export interface PlacedStructure {
   id: string;
   type: 'safehouse' | 'campfire' | 'workbench' | 'turret' | 'barricade' | 'spikes' | 'lantern';

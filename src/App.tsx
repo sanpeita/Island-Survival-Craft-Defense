@@ -12,9 +12,10 @@ import {
   loadSavedGame,
   deleteSavedGame,
   shootInk,
+  placeStructure,
   GameState,
 } from './game/gameLogic';
-import { CraftingRecipe, ResourceType } from './types/game';
+import { CraftingRecipe, ResourceType, PlaceableStructureType } from './types/game';
 import { GameHUD } from './components/GameHUD';
 import { TitleScreen } from './components/TitleScreen';
 import { RecipeModal } from './components/RecipeModal';
@@ -250,23 +251,12 @@ export default function App() {
       s.player.stats.attackPower += 20;
       s.player.stats.gatherPower += 1;
     } else if (recipe.output.type === 'building') {
-      const angle = Math.random() * Math.PI * 2;
-      const placeX = s.player.x + Math.cos(angle) * 1.5;
-      const placeZ = s.player.z + Math.sin(angle) * 1.5;
-
-      s.structures.push({
-        id: `struct_${Date.now()}`,
-        type: recipe.output.id as any,
-        level: 1,
-        x: placeX,
-        z: placeZ,
-        hp: 200,
-        maxHp: 200,
-        lastActionTime: 0,
-      });
+      const buildId = recipe.output.id as PlaceableStructureType;
+      s.placeableStructures = s.placeableStructures || { barricade: 0, spikes: 0, turret: 0, lantern: 0 };
+      s.placeableStructures[buildId] = (s.placeableStructures[buildId] || 0) + recipe.output.count * actualCount;
 
       if (engineRef.current) {
-        engineRef.current.spawnFloatingText(`🔨 ${recipe.nameJa} PLACED!`, placeX, 2, placeZ, '#48bb32');
+        engineRef.current.spawnFloatingText(`📦 ${recipe.nameJa} を作成！HUDの設置ボタンで好きな場所に置けます`, s.player.x, 2.2, s.player.z, '#48bb32');
       }
     } else if (recipe.output.type === 'upgrade') {
       if (recipe.id === 'rescue_beacon') {
@@ -292,6 +282,21 @@ export default function App() {
 
     setGameState(s);
     saveGame(s);
+  };
+
+  // --- MANUAL STRUCTURE PLACEMENT ---
+  const handlePlaceStructure = (type: PlaceableStructureType) => {
+    const s = { ...gameStateRef.current };
+    const success = placeStructure(s, type, (text, x, y, z, color) => {
+      if (engineRef.current) {
+        engineRef.current.spawnFloatingText(text, x, y, z, color);
+      }
+    });
+
+    if (success) {
+      setGameState(s);
+      saveGame(s);
+    }
   };
 
   // --- PIN RECIPE ---
@@ -398,6 +403,7 @@ export default function App() {
             onQuickEat={handleQuickEat}
             onPinRecipeClick={handlePinRecipe}
             onReturnToTitle={handleReturnToTitle}
+            onPlaceStructure={handlePlaceStructure}
           />
         )}
 

@@ -9,6 +9,7 @@ import {
   createTurretMesh,
   createBarricadeMesh,
   createSpikesMesh,
+  createFlameLanternMesh,
   createCharacterMesh,
   createEnemyMesh,
   createArrowMesh,
@@ -613,6 +614,8 @@ export class IslandThreeEngine {
           mesh = createBarricadeMesh();
         } else if (s.type === 'spikes') {
           mesh = createSpikesMesh();
+        } else if (s.type === 'lantern') {
+          mesh = createFlameLanternMesh();
         }
         if (mesh) {
           const y = this.getTerrainHeight(s.x, s.z);

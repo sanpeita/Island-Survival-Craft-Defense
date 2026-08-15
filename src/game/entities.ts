@@ -757,34 +757,34 @@ function createMiniLantern(): THREE.Group {
   return g;
 }
 
-// --- DEFENSE STRUCTURES (TURRET, BARRICADE, SPIKES) ---
+// --- DEFENSE STRUCTURES (TURRET, 7DTD-STYLE OMNIDIRECTIONAL BARRICADE, SPIKES, LANTERN) ---
 export function createTurretMesh(): THREE.Group {
   const group = new THREE.Group();
 
-  // Stone base pedestal
-  const baseGeo = new THREE.CylinderGeometry(0.6, 0.8, 0.8, 6);
+  // Stone base pedestal (Omnidirectional pyramid foundation)
+  const baseGeo = new THREE.CylinderGeometry(0.55, 0.75, 0.7, 6);
   const baseMesh = new THREE.Mesh(baseGeo, materials.stone);
-  baseMesh.position.y = 0.4;
+  baseMesh.position.y = 0.35;
   baseMesh.castShadow = true;
   group.add(baseMesh);
 
   // Rotating Crossbow Mount
   const mount = new THREE.Group();
-  mount.position.y = 0.85;
+  mount.position.y = 0.75;
 
-  const swivelGeo = new THREE.BoxGeometry(0.4, 0.3, 0.7);
+  const swivelGeo = new THREE.BoxGeometry(0.38, 0.28, 0.65);
   const swivelMesh = new THREE.Mesh(swivelGeo, materials.woodPlank);
   swivelMesh.castShadow = true;
   mount.add(swivelMesh);
 
   // Bow arms
-  const bowArmGeo = new THREE.BoxGeometry(1.6, 0.12, 0.15);
+  const bowArmGeo = new THREE.BoxGeometry(1.5, 0.12, 0.14);
   const bowArmMesh = new THREE.Mesh(bowArmGeo, materials.ironMetal);
-  bowArmMesh.position.set(0, 0.15, 0.25);
+  bowArmMesh.position.set(0, 0.15, 0.22);
   mount.add(bowArmMesh);
 
   // Arrow on rail
-  const arrowGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.8, 4);
+  const arrowGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.75, 4);
   arrowGeo.rotateX(Math.PI / 2);
   const arrowMesh = new THREE.Mesh(arrowGeo, materials.woodBark);
   arrowMesh.position.set(0, 0.18, 0.1);
@@ -795,26 +795,100 @@ export function createTurretMesh(): THREE.Group {
   return group;
 }
 
+// 7 Days to Die (7DTD) スタイルの「全方位対応・木造クロススパイクバリケード」
+// どの方向から見ても・どの角度で設置しても、均等に外側へトゲが突き出ている防衛障害物
 export function createBarricadeMesh(): THREE.Group {
   const group = new THREE.Group();
 
-  // Spiked wooden palisade
-  for (let i = -2; i <= 2; i++) {
-    const postGeo = new THREE.CylinderGeometry(0.12, 0.15, 1.4 + Math.sin(i) * 0.2, 6);
-    const postMesh = new THREE.Mesh(postGeo, materials.woodPlank);
-    postMesh.position.set(i * 0.35, 0.7, 0);
-    postMesh.rotation.z = (Math.random() - 0.5) * 0.1;
-    postMesh.castShadow = true;
-    group.add(postMesh);
+  // 1. Square base cross foundation (土台クロスフレーム)
+  const base1 = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.14, 0.22), materials.woodBark);
+  base1.position.y = 0.07;
+  base1.castShadow = true;
+  group.add(base1);
+
+  const base2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 1.6), materials.woodBark);
+  base2.position.y = 0.07;
+  base2.castShadow = true;
+  group.add(base2);
+
+  // Diagonal base supports
+  const baseD1 = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.12, 0.16), materials.woodBark);
+  baseD1.position.y = 0.06;
+  baseD1.rotation.y = Math.PI / 4;
+  group.add(baseD1);
+
+  const baseD2 = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.12, 0.16), materials.woodBark);
+  baseD2.position.y = 0.06;
+  baseD2.rotation.y = -Math.PI / 4;
+  group.add(baseD2);
+
+  // 2. Central Stout Core Pillar (中央結束支柱)
+  const centerPillar = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.95, 6), materials.woodPlank);
+  centerPillar.position.y = 0.48;
+  centerPillar.castShadow = true;
+  group.add(centerPillar);
+
+  // Heavy Iron / Rope Binding Ring
+  const ring1 = new THREE.Mesh(new THREE.TorusGeometry(0.23, 0.04, 6, 8), materials.ironMetal);
+  ring1.rotateX(Math.PI / 2);
+  ring1.position.y = 0.35;
+  group.add(ring1);
+
+  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.035, 6, 8), materials.ironMetal);
+  ring2.rotateX(Math.PI / 2);
+  ring2.position.y = 0.65;
+  group.add(ring2);
+
+  // 3. 4-Way & Diagonal Spikes radiating outwards (4方位 + 斜め4方向へ突き出た鋭利なスパイク杭)
+  // 4 Main Orthogonal Heavy Spikes (傾斜角約50度で外側に突き出す)
+  for (let i = 0; i < 4; i++) {
+    const angle = (i * Math.PI) / 2;
+    const spikeGroup = new THREE.Group();
+    spikeGroup.position.set(0, 0.38, 0);
+    spikeGroup.rotation.y = angle;
+
+    // Log shaft
+    const shaftGeo = new THREE.CylinderGeometry(0.09, 0.13, 1.25, 5);
+    const shaft = new THREE.Mesh(shaftGeo, materials.woodPlank);
+    shaft.position.set(0, 0.4, 0.35);
+    shaft.rotation.x = 0.65; // Tilt outward
+    shaft.castShadow = true;
+    spikeGroup.add(shaft);
+
+    // Sharpened cone spike tip
+    const tipGeo = new THREE.ConeGeometry(0.09, 0.45, 5);
+    const tip = new THREE.Mesh(tipGeo, materials.woodBark);
+    tip.position.set(0, 0.82, 0.62);
+    tip.rotation.x = 0.65;
+    tip.castShadow = true;
+    spikeGroup.add(tip);
+
+    group.add(spikeGroup);
   }
 
-  // Crossbeams
-  const beam1 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.15, 0.15), materials.woodBark);
-  beam1.position.set(0, 0.4, 0.1);
-  const beam2 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.15, 0.15), materials.woodBark);
-  beam2.position.set(0, 1.0, -0.1);
-  group.add(beam1);
-  group.add(beam2);
+  // 4 Diagonal Secondary Spikes (低角で足元を狙うスパイク)
+  for (let i = 0; i < 4; i++) {
+    const angle = (i * Math.PI) / 2 + Math.PI / 4;
+    const spikeGroup = new THREE.Group();
+    spikeGroup.position.set(0, 0.22, 0);
+    spikeGroup.rotation.y = angle;
+
+    const shaftGeo = new THREE.CylinderGeometry(0.06, 0.09, 0.9, 5);
+    const shaft = new THREE.Mesh(shaftGeo, materials.woodPlank);
+    shaft.position.set(0, 0.25, 0.3);
+    shaft.rotation.x = 0.85; // Low tilt
+    shaft.castShadow = true;
+    spikeGroup.add(shaft);
+
+    const tipGeo = new THREE.ConeGeometry(0.06, 0.35, 5);
+    const tip = new THREE.Mesh(tipGeo, materials.stoneDark);
+    tip.position.set(0, 0.55, 0.52);
+    tip.rotation.x = 0.85;
+    tip.castShadow = true;
+    spikeGroup.add(tip);
+
+    group.add(spikeGroup);
+  }
 
   group.userData = { type: 'barricade' };
   return group;
@@ -823,23 +897,69 @@ export function createBarricadeMesh(): THREE.Group {
 export function createSpikesMesh(): THREE.Group {
   const group = new THREE.Group();
 
-  const baseGeo = new THREE.BoxGeometry(1.6, 0.1, 1.6);
-  const baseMesh = new THREE.Mesh(baseGeo, materials.woodPlank);
-  baseMesh.position.y = 0.05;
+  const baseGeo = new THREE.BoxGeometry(1.6, 0.08, 1.6);
+  const baseMesh = new THREE.Mesh(baseGeo, materials.woodBark);
+  baseMesh.position.y = 0.04;
   group.add(baseMesh);
 
-  // Sharp spikes
-  for (let x = -0.5; x <= 0.5; x += 0.5) {
-    for (let z = -0.5; z <= 0.5; z += 0.5) {
-      const spikeGeo = new THREE.ConeGeometry(0.1, 0.6, 5);
+  // Cross brace planks
+  const brace1 = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.05, 0.2), materials.woodPlank);
+  brace1.position.y = 0.08;
+  group.add(brace1);
+  const brace2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.05, 1.5), materials.woodPlank);
+  brace2.position.y = 0.08;
+  group.add(brace2);
+
+  // Sharp omnidirectional caltrop spikes (9 positions)
+  const coords = [-0.5, 0, 0.5];
+  for (const x of coords) {
+    for (const z of coords) {
+      const spikeGeo = new THREE.ConeGeometry(0.08, 0.65, 5);
       const spikeMesh = new THREE.Mesh(spikeGeo, materials.stoneDark);
-      spikeMesh.position.set(x + (Math.random() - 0.5) * 0.1, 0.35, z + (Math.random() - 0.5) * 0.1);
+      spikeMesh.position.set(x + (Math.random() - 0.5) * 0.08, 0.38, z + (Math.random() - 0.5) * 0.08);
+      // Slight random tilt in all directions
+      spikeMesh.rotation.x = (Math.random() - 0.5) * 0.35;
+      spikeMesh.rotation.z = (Math.random() - 0.5) * 0.35;
       spikeMesh.castShadow = true;
       group.add(spikeMesh);
     }
   }
 
   group.userData = { type: 'spikes' };
+  return group;
+}
+
+export function createFlameLanternMesh(): THREE.Group {
+  const group = new THREE.Group();
+
+  // Stone base pedestal
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 0.3, 6), materials.stone);
+  base.position.y = 0.15;
+  base.castShadow = true;
+  group.add(base);
+
+  // Wood post
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.6, 6), materials.woodBark);
+  post.position.y = 0.95;
+  post.castShadow = true;
+  group.add(post);
+
+  // Top Lantern brazier
+  const brazier = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.15, 0.35, 6), materials.ironMetal);
+  brazier.position.y = 1.75;
+  group.add(brazier);
+
+  // Magical Sacred Fire Flame
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.45, 6), materials.fireGlow);
+  flame.position.y = 1.95;
+  group.add(flame);
+
+  // Omni Point Light
+  const light = new THREE.PointLight(0xffaa22, 2.0, 10, 2);
+  light.position.y = 2.0;
+  group.add(light);
+
+  group.userData = { type: 'lantern', light };
   return group;
 }
 

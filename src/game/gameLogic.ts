@@ -1,6 +1,7 @@
 import {
   ResourceType,
   ToolType,
+  PlaceableStructureType,
   TimeOfDay,
   SafehouseState,
   PlacedStructure,
@@ -61,6 +62,7 @@ export interface GameState {
   inkSplatters: InkSplatter[];
   groundDrops: FloatingDrop[];
   revealedAreas: RevealedArea[];
+  placeableStructures: Record<PlaceableStructureType, number>;
   enemyLibrary: Record<EnemyType, EnemyLibraryEntry>;
   quests: GameQuest[];
   activeQuestId: string;
@@ -287,6 +289,12 @@ export function createInitialGameState(): GameState {
     inkSplatters: [],
     groundDrops: [],
     revealedAreas: initialRevealed,
+    placeableStructures: {
+      barricade: 1,
+      spikes: 1,
+      turret: 0,
+      lantern: 0,
+    },
     enemyLibrary: JSON.parse(JSON.stringify(INITIAL_ENEMY_LIBRARY)),
     quests: initialQuests,
     activeQuestId: 'q_gather_wood',
@@ -312,6 +320,14 @@ export function loadSavedGame(): GameState | null {
       parsed.inkProjectiles = [];
       parsed.groundDrops = parsed.groundDrops || [];
       parsed.isNearFabricator = true;
+      if (!parsed.placeableStructures) {
+        parsed.placeableStructures = {
+          barricade: 1,
+          spikes: 1,
+          turret: 0,
+          lantern: 0,
+        };
+      }
       if (!parsed.revealedAreas || parsed.revealedAreas.length === 0) {
         parsed.revealedAreas = [
           { x: 0, z: -4.5, radius: 6.2 },
@@ -328,6 +344,158 @@ export function loadSavedGame(): GameState | null {
     console.warn('Failed to parse saved game', e);
   }
   return null;
+}
+
+export function isPositionInSafeZone(
+  x: number,
+  z: number,
+  structures?: PlacedStructure[],
+  safehouseLevel: number = 1
+): boolean {
+  // 1. Survival Cabin Main Base Camp: (0, -4.5), radius expands with level
+  const baseRadius = 5.2 + (safehouseLevel - 1) * 0.6;
+  if (Math.hypot(x - 0, z - (-4.5)) < baseRadius) return true;
+
+  // 2. East Coastal Watch Post (完全安全地帯サブキャンプ)
+  if (Math.hypot(x - 8.5, z - 4.5) < 3.6) return true;
+
+  // 3. West Forest Outpost (完全安全地帯サブキャンプ)
+  if (Math.hypot(x - (-8.5), z - 4.0) < 3.6) return true;
+
+  // 4. Player-placed Warding Torch Lanterns (プレイヤーが配置した退魔の篝火ランタンの周囲は完全聖域)
+  if (structures) {
+    for (const struct of structures) {
+      if (struct.type === 'lantern') {
+        if (Math.hypot(x - struct.x, z - struct.z) < 4.8) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+export function isPositionInRevealedArea(x: number, z: number, revealedAreas: RevealedArea[]): boolean {
+  for (const area of revealedAreas) {
+    const distSq = (x - area.x) ** 2 + (z - area.z) ** 2;
+    if (distSq <= area.radius ** 2) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 敵は未踏領域の暗闇（Fog-of-War 未開放地点）から湧く！
+ * プレイヤーがインクを撒いて安全地帯（開放領域）を広げるほど、
+ * 敵のスポーン位置が遠ざかり、拠点の防衛が有利になる。
+ */
+export function findDarkSpawnPosition(
+  revealedAreas: RevealedArea[],
+  structures?: PlacedStructure[],
+  safehouseLevel: number = 1
+): { x: number; z: number; isDark: boolean } {
+  const candidates: { x: number; z: number; darknessScore: number }[] = [];
+
+  for (let i = 0; i < 36; i++) {
+    const angle = (i / 36) * Math.PI * 2 + (Math.random() - 0.5) * 0.15;
+    const dist = 9.0 + Math.random() * 9.0; // Island outer wild range
+    const cx = Math.cos(angle) * dist;
+    const cz = Math.sin(angle) * dist;
+
+    // Reject if inside any safe zone (main camp, sub-camps, lanterns)
+    if (isPositionInSafeZone(cx, cz, structures, safehouseLevel)) continue;
+
+    // Check if inside revealed territory
+    let minDistToRevealed = 999;
+    let isRevealed = false;
+
+    for (const area of revealedAreas) {
+      const d = Math.hypot(cx - area.x, cz - area.z) - area.radius;
+      if (d <= 0) {
+        isRevealed = true;
+        break;
+      }
+      if (d < minDistToRevealed) {
+        minDistToRevealed = d;
+      }
+    }
+
+    if (!isRevealed) {
+      // It's in the unrevealed pitch-black fog!
+      candidates.push({ x: cx, z: cz, darknessScore: minDistToRevealed });
+    }
+  }
+
+  if (candidates.length > 0) {
+    // Pick from the best unrevealed dark locations
+    candidates.sort((a, b) => b.darknessScore - a.darknessScore);
+    const chosen = candidates[Math.floor(Math.random() * Math.min(candidates.length, 4))];
+    return { x: chosen.x, z: chosen.z, isDark: true };
+  }
+
+  // Fallback to outer perimeter if whole island is illuminated
+  const fallbackAngle = Math.random() * Math.PI * 2;
+  const fallbackDist = 15.5 + Math.random() * 2;
+  return {
+    x: Math.cos(fallbackAngle) * fallbackDist,
+    z: Math.sin(fallbackAngle) * fallbackDist,
+    isDark: false,
+  };
+}
+
+export function placeStructure(
+  s: GameState,
+  type: PlaceableStructureType,
+  spawnFloatingText: (text: string, x: number, y: number, z: number, color?: string) => void
+): boolean {
+  if (!s.placeableStructures || (s.placeableStructures[type] || 0) <= 0) {
+    return false;
+  }
+
+  // Calculate position in front of player
+  const rot = s.player.rotation;
+  const placeDist = 1.35;
+  const targetX = s.player.x + Math.sin(rot) * placeDist;
+  const targetZ = s.player.z + Math.cos(rot) * placeDist;
+
+  // Consume 1 from placeableStructures
+  s.placeableStructures[type] -= 1;
+
+  let maxHp = 150;
+  let nameJa = '防衛設備';
+  if (type === 'barricade') {
+    maxHp = 220;
+    nameJa = '7DTD風 木造スパイクバリケード';
+  } else if (type === 'spikes') {
+    maxHp = 100;
+    nameJa = 'ウッドスパイク罠';
+  } else if (type === 'turret') {
+    maxHp = 180;
+    nameJa = '自動クロスボウ砲台';
+  } else if (type === 'lantern') {
+    maxHp = 120;
+    nameJa = '退魔の篝火ランタン';
+    // Lanterns illuminate and reveal 5.5m around them!
+    s.revealedAreas.push({ x: targetX, z: targetZ, radius: 5.5 });
+  }
+
+  const newStructure: PlacedStructure = {
+    id: `placed_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    type,
+    level: 1,
+    x: Math.round(targetX * 10) / 10,
+    z: Math.round(targetZ * 10) / 10,
+    hp: maxHp,
+    maxHp,
+    lastActionTime: 0,
+  };
+
+  s.structures.push(newStructure);
+  sounds.playCraftSuccess();
+  spawnFloatingText(`🔨 ${nameJa} を設置!`, targetX, 1.4, targetZ, '#eab308');
+  return true;
 }
 
 export function shootInk(
@@ -593,14 +761,11 @@ export function updateGameWorld(
   // --- 2. INK REGENERATION (時間経過でインク回復) ---
   s.player.ink = Math.min(s.player.maxInk, s.player.ink + 7.5 * deltaSeconds);
 
-  // --- 3. NIGHT RAID MONSTER SPAWNING ---
+  // --- 3. MONSTER SPAWNING (未踏領域の暗闇からスポーン) ---
   if (s.time.phase === 'night') {
     const targetEnemies = 3 + s.time.dayCount * 2;
-    if (s.enemies.length < targetEnemies && Math.random() < 0.04) {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = 14;
-      const spawnX = Math.cos(angle) * dist;
-      const spawnZ = Math.sin(angle) * dist;
+    if (s.enemies.length < targetEnemies && Math.random() < 0.045) {
+      const spawnPos = findDarkSpawnPosition(s.revealedAreas, s.structures, s.safehouse.level);
 
       // Random enemy selection with slime, goblin, skeleton, shadow beast, boss golem
       let enemyType: EnemyType = 'goblin';
@@ -622,8 +787,8 @@ export function updateGameWorld(
       s.enemies.push({
         id: `enemy_${Date.now()}_${Math.random()}`,
         type: enemyType,
-        x: spawnX,
-        z: spawnZ,
+        x: spawnPos.x,
+        z: spawnPos.z,
         hp: meta.hp,
         maxHp: meta.hp,
         speed: meta.speed,
@@ -632,7 +797,8 @@ export function updateGameWorld(
         lastAttackTime: 0,
         target: Math.random() > 0.5 ? 'safehouse' : 'player',
       });
-      spawnFloatingText(`👾 ${meta.nameJa} 出現!`, spawnX, 1.5, spawnZ, '#ff3333');
+      const spawnMsg = spawnPos.isDark ? `💀 暗闇から ${meta.nameJa} 襲来!` : `👾 ${meta.nameJa} 出現!`;
+      spawnFloatingText(spawnMsg, spawnPos.x, 1.5, spawnPos.z, '#ff3333');
     }
   }
 
@@ -998,28 +1164,48 @@ export function updateGameWorld(
     }
   }
 
-  // --- 12. ENEMY AI & SAFEHOUSE BARRIER (サバイバルキャンプエリアへは敵は侵入不可) ---
-  const campCenterX = 0;
-  const campCenterZ = -4.5;
-  const safeAreaRadius = 5.2; // Enemy cannot enter this radius
+  // --- 12. ENEMY AI & SAFEHOUSE BARRIER (サバイバルキャンプおよび聖域エリアへは敵は侵入不可) ---
+  const isPlayerSafe = isPositionInSafeZone(s.player.x, s.player.z, s.structures, s.safehouse.level);
 
   for (const enemy of s.enemies) {
-    // Check distance to SafeArea
-    const distToCamp = Math.hypot(enemy.x - campCenterX, enemy.z - campCenterZ);
+    // 1. Check if enemy is attempting to enter any safe zone (Camp, Sub-camps, Lanterns)
+    if (isPositionInSafeZone(enemy.x, enemy.z, s.structures, s.safehouse.level)) {
+      // Repel enemy away from nearest safe zone center
+      let pushCenterX = 0;
+      let pushCenterZ = -4.5;
+      let minD = Math.hypot(enemy.x - 0, enemy.z - (-4.5));
 
-    // If enemy tries to enter SafeArea, repel them back to the barrier edge
-    if (distToCamp < safeAreaRadius) {
-      const pushAngle = Math.atan2(enemy.z - campCenterZ, enemy.x - campCenterX);
-      enemy.x = campCenterX + Math.cos(pushAngle) * (safeAreaRadius + 0.1);
-      enemy.z = campCenterZ + Math.sin(pushAngle) * (safeAreaRadius + 0.1);
-      spawnFloatingText('🛡️ BARRIER REPEL', enemy.x, 1.8, enemy.z, '#38bdf8');
+      if (Math.hypot(enemy.x - 8.5, enemy.z - 4.5) < minD) {
+        pushCenterX = 8.5;
+        pushCenterZ = 4.5;
+        minD = Math.hypot(enemy.x - 8.5, enemy.z - 4.5);
+      }
+      if (Math.hypot(enemy.x - (-8.5), enemy.z - 4.0) < minD) {
+        pushCenterX = -8.5;
+        pushCenterZ = 4.0;
+        minD = Math.hypot(enemy.x - (-8.5), enemy.z - 4.0);
+      }
+      for (const st of s.structures) {
+        if (st.type === 'lantern') {
+          const d = Math.hypot(enemy.x - st.x, enemy.z - st.z);
+          if (d < minD) {
+            pushCenterX = st.x;
+            pushCenterZ = st.z;
+            minD = d;
+          }
+        }
+      }
+
+      const pushAngle = Math.atan2(enemy.z - pushCenterZ, enemy.x - pushCenterX);
+      enemy.x += Math.cos(pushAngle) * 0.8;
+      enemy.z += Math.sin(pushAngle) * 0.8;
+      spawnFloatingText('🛡️ 聖域バリア反発', enemy.x, 1.8, enemy.z, '#38bdf8');
       continue;
     }
 
-    // Target either Player or roam towards barrier edge
-    const isPlayerInSafeArea = Math.hypot(s.player.x - campCenterX, s.player.z - campCenterZ) < safeAreaRadius;
-    const targetX = isPlayerInSafeArea ? campCenterX + ((enemy.x - campCenterX) / distToCamp) * safeAreaRadius : s.player.x;
-    const targetZ = isPlayerInSafeArea ? campCenterZ + ((enemy.z - campCenterZ) / distToCamp) * safeAreaRadius : s.player.z;
+    // Target player if outside, or wander near border if player is inside safe zone
+    const targetX = s.player.x;
+    const targetZ = s.player.z;
 
     const dx = targetX - enemy.x;
     const dz = targetZ - enemy.z;
@@ -1034,11 +1220,14 @@ export function updateGameWorld(
     }
 
     if (dist > 1.3) {
-      enemy.x += (dx / dist) * enemy.speed * deltaSeconds;
-      enemy.z += (dz / dist) * enemy.speed * deltaSeconds;
+      // If player is inside safe zone, enemy does not rush in directly
+      if (!isPlayerSafe) {
+        enemy.x += (dx / dist) * enemy.speed * deltaSeconds;
+        enemy.z += (dz / dist) * enemy.speed * deltaSeconds;
+      }
     } else {
-      // Attack player if not in safehouse
-      if (!isPlayerInSafeArea && now - enemy.lastAttackTime > enemy.attackCooldown * 1000) {
+      // Attack player if not in safe zone
+      if (!isPlayerSafe && now - enemy.lastAttackTime > enemy.attackCooldown * 1000) {
         enemy.lastAttackTime = now;
         s.player.stats.hp = Math.max(0, s.player.stats.hp - enemy.damage);
         sounds.playMonsterHit();

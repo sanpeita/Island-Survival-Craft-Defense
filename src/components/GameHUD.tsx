@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ResourceType } from '../types/game';
+import { ResourceType, PlaceableStructureType } from '../types/game';
 import { GameState, INVENTORY_META } from '../game/gameLogic';
 import { CRAFTING_RECIPES } from '../data/recipes';
 import { VirtualJoystick } from './VirtualJoystick';
@@ -22,6 +22,9 @@ import {
   Save,
   Sparkles,
   LogOut,
+  Shield,
+  Flame,
+  Crosshair,
 } from 'lucide-react';
 
 interface GameHUDProps {
@@ -37,6 +40,7 @@ interface GameHUDProps {
   onQuickEat: () => void;
   onPinRecipeClick: (recipeId: string) => void;
   onReturnToTitle?: () => void;
+  onPlaceStructure?: (type: PlaceableStructureType) => void;
 }
 
 export const GameHUD: React.FC<GameHUDProps> = ({
@@ -52,8 +56,9 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   onQuickEat,
   onPinRecipeClick,
   onReturnToTitle,
+  onPlaceStructure,
 }) => {
-  const { player, time, inventory, safehouse, quests, activeQuestId, pinnedRecipeId, isNearFabricator, saveNotification, enemyLibrary } = gameState;
+  const { player, time, inventory, safehouse, quests, activeQuestId, pinnedRecipeId, isNearFabricator, saveNotification, enemyLibrary, placeableStructures } = gameState;
   const isSoundActive = sounds.isEnabled();
   const [showFullInventory, setShowFullInventory] = useState(false);
 
@@ -89,117 +94,81 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
   const visibleItems = showFullInventory ? allItems : allItems.filter(i => i.count > 0 || ['wood', 'stone', 'leaf'].includes(i.id)).slice(0, 4);
 
+  // Placeable items summary
+  const placeableItems: Array<{ type: PlaceableStructureType; name: string; icon: string; count: number; color: string }> = [
+    { type: 'barricade' as PlaceableStructureType, name: '7DTD木製バリケード', icon: '🪵', count: placeableStructures?.barricade || 0, color: 'border-amber-700 bg-amber-950/80 text-amber-300' },
+    { type: 'spikes' as PlaceableStructureType, name: 'スパイク罠', icon: '📌', count: placeableStructures?.spikes || 0, color: 'border-orange-700 bg-orange-950/80 text-orange-300' },
+    { type: 'turret' as PlaceableStructureType, name: '自動クロスボウ砲台', icon: '🏹', count: placeableStructures?.turret || 0, color: 'border-cyan-700 bg-cyan-950/80 text-cyan-300' },
+    { type: 'lantern' as PlaceableStructureType, name: '退魔の篝火ランタン', icon: '🔥', count: placeableStructures?.lantern || 0, color: 'border-yellow-700 bg-yellow-950/80 text-yellow-300' },
+  ].filter(p => p.count > 0);
+
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-2.5 sm:p-4 select-none z-10 overflow-hidden font-sans safe-top safe-bottom safe-left safe-right">
-      {/* --- TOP ROW (Dynamic Island & Status) --- */}
-      <div className="w-full flex items-start justify-between gap-1.5 pointer-events-auto">
-        {/* Top Left: Base Level & Player HP */}
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#121212]/90 backdrop-blur-md border border-[#333] shadow-2xl">
-            {/* Safehouse Status */}
-            <div
-              onClick={onOpenSafehouse}
-              className="flex flex-col cursor-pointer group"
-            >
-              <span className="text-[8px] uppercase tracking-widest text-cyan-400 font-bold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
-                Camp
-              </span>
-              <span className="text-[11px] font-mono font-bold text-[#e0e0e0] group-hover:text-cyan-300 transition-colors whitespace-nowrap">
-                Lv.{safehouse.level}
-              </span>
-            </div>
-
-            <div className="h-5 w-[1px] bg-[#333]" />
-
-            {/* Vitals Meter */}
-            <div className="flex items-center gap-1.5">
-              <div className="w-5 h-5 rounded-full border border-red-900/60 flex items-center justify-center bg-red-950/40 text-red-500 text-[9px] font-bold shadow-inner">
-                ❤
-              </div>
-              <div className="flex flex-col w-16 sm:w-20">
-                <div className="flex justify-between items-center text-[8px] text-gray-400 font-mono">
-                  <span className="text-[#e0e0e0] font-bold">{player.stats.hp}/{player.stats.maxHp}</span>
-                </div>
-                <div className="w-full h-1.5 bg-[#222] rounded-full overflow-hidden mt-0.5 border border-[#333]/50">
-                  <div
-                    className="h-full rounded-full transition-all duration-300 bg-gradient-to-r from-red-600 to-amber-500"
-                    style={{ width: `${hpPercent}%` }}
-                  />
-                </div>
-              </div>
-            </div>
+    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-2 sm:p-4 select-none z-10 overflow-hidden font-sans safe-top safe-bottom safe-left safe-right">
+      {/* --- TOP ROW (Optimized for iPhone 16 screen width: 393px) --- */}
+      <div className="w-full flex items-center justify-between gap-1 pointer-events-auto">
+        {/* Top Left: Base Level & Player HP (Compact) */}
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-[#121212]/90 backdrop-blur-md border border-[#333] shadow-lg shrink-0">
+          {/* Safehouse Level */}
+          <div
+            onClick={onOpenSafehouse}
+            className="flex flex-col cursor-pointer group"
+            title="拠点を管理"
+          >
+            <span className="text-[7px] uppercase tracking-widest text-cyan-400 font-bold flex items-center gap-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+              Camp
+            </span>
+            <span className="text-[10px] font-mono font-bold text-[#e0e0e0] group-hover:text-cyan-300 transition-colors whitespace-nowrap">
+              Lv.{safehouse.level}
+            </span>
           </div>
 
-          {/* Near Fabricator Indicator */}
-          {isNearFabricator && (
-            <div
-              onClick={onOpenCrafting}
-              className="px-2 py-0.5 rounded-lg bg-cyan-950/90 border border-cyan-500/60 shadow-[0_0_15px_rgba(6,182,212,0.4)] flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all animate-bounce"
-            >
-              <Save className="w-3 h-3 text-cyan-400 animate-pulse" />
-              <span className="text-[9px] font-bold text-cyan-300">3D万能ファブリケーター (セーブ/工作)</span>
-            </div>
-          )}
-        </div>
+          <div className="h-4 w-[1px] bg-[#333]" />
 
-        {/* Top Center: Time of Day & Currency */}
-        <div className="flex flex-col items-center gap-0.5">
-          <div className="flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-xl bg-[#121212]/90 backdrop-blur-md border border-[#333] shadow-2xl">
-            <div className="flex flex-col items-center">
-              <span className="text-[8px] text-gray-500 uppercase tracking-widest font-bold">DAY</span>
-              <span className="text-xs sm:text-sm font-bold font-mono text-[#e0e0e0] leading-none">
-                {String(time.dayCount).padStart(2, '0')}
-              </span>
-            </div>
-
-            <div className="h-5 w-[1px] bg-[#333]" />
-
-            <div className="flex flex-col min-w-[70px] sm:min-w-[90px]">
-              <div className="flex justify-between items-center text-[8px] uppercase tracking-wider">
-                <span className="text-gray-400 font-medium truncate max-w-[50px] sm:max-w-none">
-                  {time.phase === 'day' && 'Day'}
-                  {time.phase === 'sunset' && 'Sunset'}
-                  {time.phase === 'night' && 'Night'}
-                  {time.phase === 'sunrise' && 'Dawn'}
-                </span>
-                <span className={`font-mono font-bold ${time.phase === 'night' ? 'text-red-400 animate-pulse' : 'text-orange-400'}`}>
-                  {timeFormatted}
-                </span>
+          {/* Vitals HP Meter */}
+          <div className="flex items-center gap-1">
+            <span className="text-red-500 text-[10px] font-bold">❤</span>
+            <div className="flex flex-col w-12 sm:w-16">
+              <div className="flex justify-between items-center text-[7.5px] text-gray-400 font-mono">
+                <span className="text-[#e0e0e0] font-bold">{player.stats.hp}/{player.stats.maxHp}</span>
               </div>
-              <div className="w-full h-1 bg-[#222] rounded-full mt-0.5 overflow-hidden border border-[#333]/50">
+              <div className="w-full h-1.5 bg-[#222] rounded-full overflow-hidden mt-0.5 border border-[#333]/50">
                 <div
-                  className={`h-full transition-all duration-300 ${
-                    time.phase === 'night'
-                      ? 'bg-gradient-to-r from-red-600 to-purple-600'
-                      : 'bg-gradient-to-r from-amber-600 to-orange-400'
-                  }`}
-                  style={{ width: `${dayProgressPct}%` }}
+                  className="h-full rounded-full transition-all duration-300 bg-gradient-to-r from-red-600 to-amber-500"
+                  style={{ width: `${hpPercent}%` }}
                 />
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Currency Pill */}
-          <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-[#121212]/80 backdrop-blur-md border border-[#2a2a2a] text-[10px] font-mono shadow">
-            <span className="text-amber-400 flex items-center gap-0.5 font-bold">
-              <span>🪙</span>
-              <span>{inventory.gold}</span>
+        {/* Top Center: Time of Day & Currency (Compact) */}
+        <div className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-xl bg-[#121212]/90 backdrop-blur-md border border-[#333] shadow-lg shrink">
+          <div className="flex flex-col items-center">
+            <span className="text-[7px] text-gray-500 uppercase font-bold">D.{time.dayCount}</span>
+            <span className={`font-mono text-[9px] font-bold ${time.phase === 'night' ? 'text-red-400 animate-pulse' : 'text-orange-400'}`}>
+              {timeFormatted}
             </span>
-            <span className="text-gray-600">|</span>
-            <span className="text-cyan-400 flex items-center gap-0.5 font-bold">
-              <span>💎</span>
-              <span>{inventory.gem}</span>
+          </div>
+
+          <div className="h-4 w-[1px] bg-[#333]" />
+
+          <div className="flex items-center gap-1 text-[9px] font-mono">
+            <span className="text-amber-400 flex items-center font-bold">
+              <span>🪙</span><span>{inventory.gold}</span>
+            </span>
+            <span className="text-cyan-400 flex items-center font-bold">
+              <span>💎</span><span>{inventory.gem}</span>
             </span>
           </div>
         </div>
 
-        {/* Top Right: Sound, Help & Title */}
-        <div className="flex items-center gap-1">
+        {/* Top Right: Sound, Help & Title Exit (Guaranteed to fit iPhone 16) */}
+        <div className="flex items-center gap-1 shrink-0">
           <button
             id="toggle-sound-btn"
             onClick={() => sounds.toggleSound()}
-            className="w-8 h-8 rounded-xl bg-[#121212]/90 hover:bg-[#1a1a1a] active:scale-95 backdrop-blur-md border border-[#333] flex items-center justify-center text-[#e0e0e0] hover:border-amber-500/50 transition-all shadow-lg cursor-pointer"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#121212]/90 hover:bg-[#1a1a1a] active:scale-95 backdrop-blur-md border border-[#333] flex items-center justify-center text-[#e0e0e0] hover:border-amber-500/50 transition-all shadow-md cursor-pointer"
             title="サウンド切替"
           >
             {isSoundActive ? <Volume2 className="w-3.5 h-3.5 text-amber-400" /> : <VolumeX className="w-3.5 h-3.5 text-gray-500" />}
@@ -207,8 +176,8 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           <button
             id="help-btn"
             onClick={onOpenHelp}
-            className="w-8 h-8 rounded-xl bg-[#121212]/90 hover:bg-[#1a1a1a] active:scale-95 backdrop-blur-md border border-[#333] flex items-center justify-center text-[#e0e0e0] hover:border-amber-500/50 transition-all shadow-lg cursor-pointer"
-            title="ヘルプ"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#121212]/90 hover:bg-[#1a1a1a] active:scale-95 backdrop-blur-md border border-[#333] flex items-center justify-center text-[#e0e0e0] hover:border-amber-500/50 transition-all shadow-md cursor-pointer"
+            title="遊び方ガイド"
           >
             <HelpCircle className="w-3.5 h-3.5 text-gray-300" />
           </button>
@@ -216,7 +185,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             <button
               id="return-title-btn"
               onClick={onReturnToTitle}
-              className="w-8 h-8 rounded-xl bg-[#121212]/90 hover:bg-red-950/80 active:scale-95 backdrop-blur-md border border-[#333] hover:border-red-500/50 flex items-center justify-center text-slate-300 hover:text-red-300 transition-all shadow-lg cursor-pointer"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#121212]/90 hover:bg-red-950/80 active:scale-95 backdrop-blur-md border border-[#333] hover:border-red-500/50 flex items-center justify-center text-red-300 transition-all shadow-md cursor-pointer"
               title="タイトル画面へ戻る"
             >
               <LogOut className="w-3.5 h-3.5" />
@@ -224,6 +193,19 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           )}
         </div>
       </div>
+
+      {/* Near Fabricator Indicator */}
+      {isNearFabricator && (
+        <div className="w-full flex justify-center mt-1 pointer-events-auto">
+          <div
+            onClick={onOpenCrafting}
+            className="px-2.5 py-1 rounded-lg bg-cyan-950/90 border border-cyan-500/60 shadow-[0_0_15px_rgba(6,182,212,0.4)] flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all animate-bounce"
+          >
+            <Save className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+            <span className="text-[10px] font-bold text-cyan-300">3D万能ファブリケーター (セーブ/工作機)</span>
+          </div>
+        </div>
+      )}
 
       {/* --- AUTO SAVE FLOATING BANNER --- */}
       {saveNotification && (
@@ -259,7 +241,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       )}
 
       {/* --- RIGHT COMPACT RESOURCE SCAN --- */}
-      <div className="absolute right-2.5 sm:right-4 top-20 sm:top-24 flex flex-col items-end gap-1 pointer-events-auto">
+      <div className="absolute right-2 sm:right-4 top-16 sm:top-20 flex flex-col items-end gap-1 pointer-events-auto">
         <button
           onClick={() => setShowFullInventory(!showFullInventory)}
           className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#121212]/80 border border-[#2a2a2a] text-[8px] uppercase tracking-wider text-gray-400 font-mono hover:text-amber-400 transition-colors cursor-pointer"
@@ -328,15 +310,41 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       )}
 
       {/* --- BOTTOM CONTROLS & DOCK --- */}
-      <div className="w-full flex flex-col gap-2 pointer-events-auto mt-auto">
+      <div className="w-full flex flex-col gap-1.5 pointer-events-auto mt-auto">
+        {/* --- PLACEABLE STRUCTURES QUICK PALETTE (クラフト後の任意タイミング設置バー) --- */}
+        {placeableItems.length > 0 && (
+          <div className="w-full flex items-center justify-center gap-1.5 px-1 animate-fade-in">
+            <div className="px-2 py-1 rounded-xl bg-[#121212]/95 backdrop-blur-md border border-[#333] shadow-2xl flex items-center gap-1.5 max-w-full overflow-x-auto">
+              <span className="text-[8px] uppercase tracking-wider font-bold text-amber-400 whitespace-nowrap flex items-center gap-1">
+                <span>🔨</span>
+                <span>設置:</span>
+              </span>
+              {placeableItems.map(item => (
+                <button
+                  key={item.type}
+                  onClick={() => onPlaceStructure && onPlaceStructure(item.type)}
+                  className={`px-2 py-1 rounded-lg border text-[10px] font-bold shadow flex items-center gap-1 active:scale-90 transition-all cursor-pointer ${item.color}`}
+                  title={`${item.name}を目の前に設置する`}
+                >
+                  <span className="text-xs">{item.icon}</span>
+                  <span className="truncate max-w-[80px] sm:max-w-none">{item.name}</span>
+                  <span className="px-1 py-0.2 rounded-full bg-black/50 text-[9px] font-mono">
+                    x{item.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Quick Menu Dock */}
         <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             {/* Fabricator 3D Crafting Button */}
             <button
               id="crafting-codex-btn"
               onClick={onOpenCrafting}
-              className="px-2.5 py-1.5 rounded-xl bg-[#161616]/95 hover:bg-[#222] active:scale-95 text-[#e0e0e0] border border-cyan-500/60 hover:border-cyan-400 shadow-xl flex items-center gap-1.5 transition-all cursor-pointer group"
+              className="px-2 py-1.5 rounded-xl bg-[#161616]/95 hover:bg-[#222] active:scale-95 text-[#e0e0e0] border border-cyan-500/60 hover:border-cyan-400 shadow-xl flex items-center gap-1 transition-all cursor-pointer group"
             >
               <Hammer className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
               <span className="text-[10px] uppercase tracking-wider font-bold text-cyan-400">工作機</span>
@@ -346,7 +354,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             <button
               id="enemy-library-btn"
               onClick={onOpenEnemyLibrary}
-              className="px-2.5 py-1.5 rounded-xl bg-[#121212]/90 hover:bg-[#1a1a1a] active:scale-95 text-[#e0e0e0] border border-amber-500/40 hover:border-amber-400 shadow-xl flex items-center gap-1.5 transition-all cursor-pointer group"
+              className="px-2 py-1.5 rounded-xl bg-[#121212]/90 hover:bg-[#1a1a1a] active:scale-95 text-[#e0e0e0] border border-amber-500/40 hover:border-amber-400 shadow-xl flex items-center gap-1 transition-all cursor-pointer group"
             >
               <BookOpen className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
               <span className="text-[10px] uppercase tracking-wider font-bold text-amber-400">
@@ -358,7 +366,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             <button
               id="safehouse-btn"
               onClick={onOpenSafehouse}
-              className="px-2.5 py-1.5 rounded-xl bg-[#121212]/90 hover:bg-[#1a1a1a] active:scale-95 text-[#e0e0e0] border border-[#333] hover:border-amber-500/50 shadow-xl flex items-center gap-1.5 transition-all cursor-pointer group"
+              className="px-2 py-1.5 rounded-xl bg-[#121212]/90 hover:bg-[#1a1a1a] active:scale-95 text-[#e0e0e0] border border-[#333] hover:border-amber-500/50 shadow-xl flex items-center gap-1 transition-all cursor-pointer group"
             >
               <Home className="w-3.5 h-3.5 text-gray-400 group-hover:text-amber-400 transition-colors" />
               <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400 group-hover:text-amber-400">拠点</span>
@@ -368,7 +376,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             <button
               id="backpack-btn"
               onClick={onOpenInventory}
-              className="px-2.5 py-1.5 rounded-xl bg-[#121212]/90 hover:bg-[#1a1a1a] active:scale-95 text-[#e0e0e0] border border-[#333] hover:border-amber-500/50 shadow-xl flex items-center gap-1.5 transition-all cursor-pointer group"
+              className="px-2 py-1.5 rounded-xl bg-[#121212]/90 hover:bg-[#1a1a1a] active:scale-95 text-[#e0e0e0] border border-[#333] hover:border-amber-500/50 shadow-xl flex items-center gap-1 transition-all cursor-pointer group"
             >
               <Backpack className="w-3.5 h-3.5 text-gray-400 group-hover:text-amber-400 transition-colors" />
               <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400 group-hover:text-amber-400">持物</span>
@@ -380,7 +388,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             <button
               id="quick-eat-btn"
               onClick={onQuickEat}
-              className="px-2.5 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 active:scale-95 text-emerald-300 text-[10px] font-bold border border-emerald-700/60 shadow-lg flex items-center gap-1 transition-all cursor-pointer"
+              className="px-2 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 active:scale-95 text-emerald-300 text-[10px] font-bold border border-emerald-700/60 shadow-lg flex items-center gap-1 transition-all cursor-pointer"
             >
               <span>🍲</span>
               <span className="font-mono">回復({inventory.stew})</span>
@@ -396,7 +404,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           </div>
 
           {/* Right Thumb: Dual Actions (Ink Blaster + Melee Attack Action) */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Splatoon-like Ink Blaster Button with Tank Gauge */}
             <div className="flex flex-col items-center">
               {/* Vertical Ink Tank Meter */}
@@ -411,7 +419,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                 id="ink-shoot-btn"
                 onClick={onShootInk}
                 disabled={player.ink < 15}
-                className={`w-14 h-14 rounded-full border-2 shadow-lg flex flex-col items-center justify-center transition-transform active:scale-90 select-none touch-none ${
+                className={`w-13 h-13 sm:w-14 sm:h-14 rounded-full border-2 shadow-lg flex flex-col items-center justify-center transition-transform active:scale-90 select-none touch-none ${
                   player.ink >= 15
                     ? 'bg-gradient-to-tr from-fuchsia-600 via-pink-500 to-cyan-400 text-white border-white/80 shadow-[0_0_20px_rgba(236,72,153,0.5)] cursor-pointer'
                     : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed opacity-60'
@@ -428,7 +436,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               onPointerDown={() => onAttack(true)}
               onPointerUp={() => onAttack(false)}
               onPointerLeave={() => onAttack(false)}
-              className="w-18 h-18 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-amber-700 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-400 active:scale-90 text-black font-black border-2 border-amber-300/70 shadow-[0_0_25px_rgba(217,119,6,0.5)] flex flex-col items-center justify-center transition-transform cursor-pointer select-none touch-none"
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-amber-700 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-400 active:scale-90 text-black font-black border-2 border-amber-300/70 shadow-[0_0_25px_rgba(217,119,6,0.5)] flex flex-col items-center justify-center transition-transform cursor-pointer select-none touch-none"
             >
               <Sword className="w-6 h-6 text-stone-950" />
               <span className="text-[9px] font-black tracking-widest uppercase text-stone-950 mt-0.5">ACTION</span>
