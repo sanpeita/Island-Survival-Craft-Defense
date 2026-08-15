@@ -240,42 +240,42 @@ export class IslandThreeEngine {
     cliffFront.position.set(-1, -0.2, 15.1);
     islandGroup.add(cliffFront);
 
-    // Tier 2 High Cliff Plateau
-    const t2Geo = new THREE.BoxGeometry(14, 2.8, 14);
+    // Tier 2 High Cliff Plateau (Repositioned to North-West corner, completely clear of Survival Camp)
+    const t2Geo = new THREE.BoxGeometry(9.0, 1.2, 8.5);
     const t2Mesh = new THREE.Mesh(t2Geo, t1Mat);
-    t2Mesh.position.set(-6, 1.4, -6.5);
+    t2Mesh.position.set(-9.2, 1.4, -9.2);
     t2Mesh.receiveShadow = true;
     t2Mesh.castShadow = true;
     islandGroup.add(t2Mesh);
 
     // Tier 2 Cliff face skirts
-    const t2CliffSouth = new THREE.Mesh(new THREE.BoxGeometry(14.2, 2.6, 0.4), cliffMat);
-    t2CliffSouth.position.set(-6, 0.5, 0.6);
+    const t2CliffSouth = new THREE.Mesh(new THREE.BoxGeometry(9.0, 1.2, 0.3), cliffMat);
+    t2CliffSouth.position.set(-9.2, 0.8, -4.95);
     islandGroup.add(t2CliffSouth);
 
-    const t2CliffEast = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.6, 14.2), cliffMat);
-    t2CliffEast.position.set(1.1, 0.5, -6.5);
+    const t2CliffEast = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.2, 8.5), cliffMat);
+    t2CliffEast.position.set(-4.7, 0.8, -9.2);
     islandGroup.add(t2CliffEast);
 
-    // Wooden Stairs
+    // Wooden Stairs (South face of the plateau at x = -8.0, climbing up to Tier 2)
     const stairsGroup = new THREE.Group();
-    stairsGroup.position.set(1.1, 0, -2.5);
+    stairsGroup.position.set(-8.0, 0.8, -4.95);
     const plankMat = new THREE.MeshStandardMaterial({ color: 0xaf7643, roughness: 0.7 });
 
-    const numSteps = 7;
+    const numSteps = 6;
     for (let i = 0; i < numSteps; i++) {
-      const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.22, 0.6), plankMat);
-      stepMesh.position.set(0, (i + 1) * 0.38, -i * 0.5);
+      const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.18, 0.4), plankMat);
+      stepMesh.position.set(0, (i + 1) * 0.18, (i - 3) * 0.3);
       stepMesh.castShadow = true;
       stepMesh.receiveShadow = true;
       stairsGroup.add(stepMesh);
     }
-    const railGeo = new THREE.CylinderGeometry(0.08, 0.08, 3.8, 5);
-    railGeo.rotateX(Math.PI / 4);
+    const railGeo = new THREE.CylinderGeometry(0.06, 0.06, 2.6, 5);
+    railGeo.rotateX(-Math.PI / 5);
     const railL = new THREE.Mesh(railGeo, plankMat);
-    railL.position.set(-1.15, 1.5, -1.5);
+    railL.position.set(-1.05, 0.65, -0.5);
     const railR = new THREE.Mesh(railGeo, plankMat);
-    railR.position.set(1.15, 1.5, -1.5);
+    railR.position.set(1.05, 0.65, -0.5);
     stairsGroup.add(railL);
     stairsGroup.add(railR);
     islandGroup.add(stairsGroup);
@@ -495,6 +495,17 @@ export class IslandThreeEngine {
     }
   }
 
+  public getTerrainHeight(x: number, z: number): number {
+    if (x <= -4.7 && z <= -4.95) {
+      return 2.0;
+    }
+    if (Math.abs(x - (-8.0)) < 1.1 && z >= -4.95 && z <= -3.2) {
+      const progress = Math.max(0, Math.min(1, (-3.2 - z) / 1.75));
+      return 0.8 + progress * 1.2;
+    }
+    return 0.8;
+  }
+
   public syncInkSplatters(splatters: InkSplatter[]) {
     const currentIds = new Set(splatters.map(s => s.id));
     for (const [id, mesh] of this.inkSplatterMeshes.entries()) {
@@ -507,7 +518,8 @@ export class IslandThreeEngine {
       let mesh = this.inkSplatterMeshes.get(s.id);
       if (!mesh) {
         mesh = createInkSplatterMesh(parseInt(s.color.replace('#', '0x'), 16), s.radius);
-        mesh.position.set(s.x, 0.82, s.z);
+        const y = this.getTerrainHeight(s.x, s.z) + 0.02;
+        mesh.position.set(s.x, y, s.z);
         mesh.rotation.y = s.rotation;
         this.scene.add(mesh);
         this.inkSplatterMeshes.set(s.id, mesh);
@@ -534,7 +546,8 @@ export class IslandThreeEngine {
         } else {
           mesh = createPumpkinPatchMesh();
         }
-        mesh.position.set(node.x, 0.8, node.z);
+        const y = this.getTerrainHeight(node.x, node.z);
+        mesh.position.set(node.x, y, node.z);
         this.scene.add(mesh);
         this.nodeMeshes.set(node.id, mesh);
       }
@@ -563,7 +576,8 @@ export class IslandThreeEngine {
           mesh = createSpikesMesh();
         }
         if (mesh) {
-          mesh.position.set(s.x, 0.8, s.z);
+          const y = this.getTerrainHeight(s.x, s.z);
+          mesh.position.set(s.x, y, s.z);
           this.scene.add(mesh);
           this.structureMeshes.set(s.id, mesh);
         }
@@ -587,7 +601,8 @@ export class IslandThreeEngine {
         this.scene.add(mesh);
         this.enemyMeshes.set(enemy.id, mesh);
       }
-      mesh.position.set(enemy.x, 0.8, enemy.z);
+      const y = this.getTerrainHeight(enemy.x, enemy.z);
+      mesh.position.set(enemy.x, y, enemy.z);
     }
   }
 
@@ -621,7 +636,8 @@ export class IslandThreeEngine {
     isAttacking: boolean,
     equippedTool: ToolType
   ) {
-    this.heroGroup.position.set(x, 0.8, z);
+    const heroY = this.getTerrainHeight(x, z);
+    this.heroGroup.position.set(x, heroY, z);
     this.heroGroup.rotation.y = rotationY;
 
     const time = performance.now() * 0.01;

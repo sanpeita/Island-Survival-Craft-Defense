@@ -76,7 +76,7 @@ export function createInitialGameState(): GameState {
 
   const initialNodes: ResourceNode[] = [
     // Trees on lower tier
-    { id: 'tree_1', type: 'tree', x: -8, z: -2, hp: 3, maxHp: 3, resourceYield: 'wood', yieldAmount: 3, respawnTime: 12, isDepleted: false },
+    { id: 'tree_1', type: 'tree', x: -6, z: -1.5, hp: 3, maxHp: 3, resourceYield: 'wood', yieldAmount: 3, respawnTime: 12, isDepleted: false },
     { id: 'tree_2', type: 'tree', x: -9, z: 6, hp: 3, maxHp: 3, resourceYield: 'wood', yieldAmount: 3, respawnTime: 12, isDepleted: false },
     { id: 'tree_3', type: 'coconut_palm', x: 6, z: 8, hp: 3, maxHp: 3, resourceYield: 'coconut', yieldAmount: 2, respawnTime: 14, isDepleted: false },
     { id: 'tree_4', type: 'tree', x: 8, z: -3, hp: 3, maxHp: 3, resourceYield: 'wood', yieldAmount: 3, respawnTime: 12, isDepleted: false },
@@ -91,10 +91,10 @@ export function createInitialGameState(): GameState {
     { id: 'farm_2', type: 'pumpkin_patch', x: 1, z: 6, hp: 2, maxHp: 2, resourceYield: 'pumpkin', yieldAmount: 3, respawnTime: 10, isDepleted: false },
     { id: 'farm_3', type: 'pumpkin_patch', x: -0.5, z: 8.5, hp: 2, maxHp: 2, resourceYield: 'pumpkin', yieldAmount: 3, respawnTime: 10, isDepleted: false },
 
-    // Upper Tier Nodes (Reached via stairs)
-    { id: 'tree_up_1', type: 'tree', x: -7, z: -8, hp: 3, maxHp: 3, resourceYield: 'wood', yieldAmount: 4, respawnTime: 12, isDepleted: false },
-    { id: 'rock_up_1', type: 'iron_ore', x: -4, z: -10, hp: 5, maxHp: 5, resourceYield: 'iron', yieldAmount: 3, respawnTime: 18, isDepleted: false },
-    { id: 'tree_up_2', type: 'coconut_palm', x: -10, z: -10, hp: 3, maxHp: 3, resourceYield: 'coconut', yieldAmount: 3, respawnTime: 14, isDepleted: false },
+    // Upper Tier Nodes (Reached via stairs to the North-West high plateau)
+    { id: 'tree_up_1', type: 'tree', x: -8.0, z: -8.0, hp: 3, maxHp: 3, resourceYield: 'wood', yieldAmount: 4, respawnTime: 12, isDepleted: false },
+    { id: 'rock_up_1', type: 'iron_ore', x: -6.5, z: -9.5, hp: 5, maxHp: 5, resourceYield: 'iron', yieldAmount: 3, respawnTime: 18, isDepleted: false },
+    { id: 'tree_up_2', type: 'coconut_palm', x: -10.5, z: -9.5, hp: 3, maxHp: 3, resourceYield: 'coconut', yieldAmount: 3, respawnTime: 14, isDepleted: false },
   ];
 
   const initialStructures: PlacedStructure[] = [
