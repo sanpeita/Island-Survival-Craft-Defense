@@ -12,6 +12,7 @@ interface RecipeModalProps {
   inventory: Record<ResourceType, number>;
   safehouseLevel: number;
   pinnedRecipeId: string | null;
+  isNearFabricator: boolean;
   onPinRecipe: (recipeId: string) => void;
   onCraftRecipe: (recipe: CraftingRecipe, count: number) => void;
 }
@@ -31,6 +32,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
   inventory,
   safehouseLevel,
   pinnedRecipeId,
+  isNearFabricator,
   onPinRecipe,
   onCraftRecipe,
 }) => {
@@ -71,7 +73,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
   };
 
   const handleCraft = (recipe: CraftingRecipe, count: number = 1) => {
-    if (!canCraft(recipe)) return;
+    if (!canCraft(recipe) || !isNearFabricator) return;
     sounds.playCraftSuccess();
     confetti({ particleCount: 30, spread: 60, origin: { y: 0.7 } });
     onCraftRecipe(recipe, count);
@@ -331,13 +333,20 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 
             {/* Craft Actions */}
             {selectedRecipe && (
-              <div className="pt-4 border-t border-[#222] flex gap-2">
+              <div className="pt-4 border-t border-[#222]">
+                {!isNearFabricator && (
+                  <div className="mb-3 p-3 rounded-lg bg-cyan-950/30 border border-cyan-800/50 text-xs text-cyan-300 flex items-center gap-2">
+                    <span className="text-base">⚡</span>
+                    <span>3D万能ファブリケーターに触れていないため、クラフトできません</span>
+                  </div>
+                )}
+                <div className="flex gap-2">
                 <button
                   id="craft-single-btn"
                   onClick={() => handleCraft(selectedRecipe, 1)}
-                  disabled={!canCraft(selectedRecipe)}
+                  disabled={!canCraft(selectedRecipe) || !isNearFabricator}
                   className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    canCraft(selectedRecipe)
+                    canCraft(selectedRecipe) && isNearFabricator
                       ? 'bg-amber-600 hover:bg-amber-500 active:scale-98 text-black shadow-lg'
                       : 'bg-[#222] text-gray-500 border border-[#333] cursor-not-allowed'
                   }`}
@@ -350,11 +359,17 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                   <button
                     id="craft-max-btn"
                     onClick={() => handleCraft(selectedRecipe, getMaxCraftable(selectedRecipe))}
-                    className="py-2.5 px-4 rounded-xl font-bold text-xs uppercase tracking-wider bg-[#1a1a1a] hover:bg-[#252525] text-amber-400 border border-amber-600/50 flex items-center justify-center transition-all cursor-pointer"
+                    disabled={!canCraft(selectedRecipe) || !isNearFabricator}
+                    className={`py-2.5 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center transition-all cursor-pointer ${
+                      canCraft(selectedRecipe) && isNearFabricator
+                        ? 'bg-[#1a1a1a] hover:bg-[#252525] text-amber-400 border border-amber-600/50'
+                        : 'bg-[#222] text-gray-500 border border-[#333] cursor-not-allowed'
+                    }`}
                   >
                     最大 ({getMaxCraftable(selectedRecipe)})
                   </button>
                 )}
+                </div>
               </div>
             )}
           </div>

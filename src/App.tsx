@@ -225,6 +225,7 @@ export default function App() {
 
   // --- CRAFTING ACTION ---
   const handleCraftRecipe = (recipe: CraftingRecipe, count: number = 1) => {
+    if (!gameStateRef.current.isNearFabricator) return;
     const s = { ...gameStateRef.current };
     const maxPossible = Math.floor(
       Math.min(...recipe.inputs.map(i => (s.inventory[i.resource] || 0) / i.count))
@@ -414,6 +415,7 @@ export default function App() {
           inventory={gameState.inventory}
           safehouseLevel={gameState.safehouse.level}
           pinnedRecipeId={gameState.pinnedRecipeId}
+          isNearFabricator={gameState.isNearFabricator}
           onPinRecipe={handlePinRecipe}
           onCraftRecipe={handleCraftRecipe}
         />
