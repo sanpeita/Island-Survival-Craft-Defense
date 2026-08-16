@@ -20,8 +20,11 @@ import {
 import { INITIAL_ENEMY_LIBRARY } from '../data/enemyLibrary';
 import { sounds } from '../audio/soundManager';
 import confetti from 'canvas-confetti';
+import { generateWorld, WORLD_BOUND_HALF, WorldTile } from './worldGen';
 
-const STORAGE_KEY = 'island_survival_save_v2';
+// Old save keys are detected and deleted (localStorage cleanup). Version bump = hard break.
+const STORAGE_KEY = 'island_survival_save_v3';
+const SAVE_VERSION = 3;
 
 export interface RevealedArea {
   x: number;
@@ -63,6 +66,8 @@ export interface GameState {
   inkSplatters: InkSplatter[];
   groundDrops: FloatingDrop[];
   revealedAreas: RevealedArea[];
+  tiles: WorldTile[];
+  saveVersion: number;
   placeableStructures: Record<PlaceableStructureType, number>;
   enemyLibrary: Record<EnemyType, EnemyLibraryEntry>;
   quests: GameQuest[];
@@ -102,7 +107,9 @@ export function createInitialGameState(): GameState {
   const saved = loadSavedGame();
   if (saved) return saved;
 
-  const initialNodes: ResourceNode[] = [
+  // Hand-authored camp invariants (day-1 core loop: gather wood -> build turret -> survive).
+  // They stay fixed regardless of the randomly generated world.
+  const baseNodes: ResourceNode[] = [
     // Trees on lower tier
     { id: 'tree_1', type: 'tree', x: -6, z: -1.5, hp: 3, maxHp: 3, resourceYield: 'wood', yieldAmount: 3, respawnTime: 12, isDepleted: false },
     { id: 'tree_2', type: 'tree', x: -9, z: 6, hp: 3, maxHp: 3, resourceYield: 'wood', yieldAmount: 3, respawnTime: 12, isDepleted: false },
@@ -124,6 +131,11 @@ export function createInitialGameState(): GameState {
     { id: 'rock_up_1', type: 'iron_ore', x: -6.5, z: -9.5, hp: 5, maxHp: 5, resourceYield: 'iron', yieldAmount: 3, respawnTime: 18, isDepleted: false },
     { id: 'tree_up_2', type: 'coconut_palm', x: -10.5, z: -9.5, hp: 3, maxHp: 3, resourceYield: 'coconut', yieldAmount: 3, respawnTime: 14, isDepleted: false },
   ];
+
+  // Catan-style pre-generated world: base chunk (0,0) is fixed; ring tiles around it get
+  // biomes from fixed counts. Ring resource nodes are added around the camp invariants.
+  const world = generateWorld(baseNodes);
+  const initialNodes: ResourceNode[] = [...baseNodes, ...world.nodes];
 
   const initialStructures: PlacedStructure[] = [
     {
@@ -300,6 +312,8 @@ export function createInitialGameState(): GameState {
     inkSplatters: [],
     groundDrops: [],
     revealedAreas: initialRevealed,
+    tiles: world.tiles,
+    saveVersion: SAVE_VERSION,
     placeableStructures: {
       barricade: 1,
       spikes: 1,
@@ -320,9 +334,16 @@ export function createInitialGameState(): GameState {
 
 export function loadSavedGame(): GameState | null {
   try {
+    cleanupLegacySaves();
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as GameState;
+      // Version mismatch (structural break) -> discard: TitleScreen shows "セーブデータがありません".
+      if (parsed.saveVersion !== SAVE_VERSION) {
+        console.warn('Save version mismatch, discarding old save', parsed.saveVersion);
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+      }
       // Always spawn player right at Fabricator location when loading
       parsed.player.x = 0;
       parsed.player.z = -3.2;
@@ -336,6 +357,9 @@ export function loadSavedGame(): GameState | null {
       parsed.groundDrops = parsed.groundDrops || [];
       parsed.isNearFabricator = true;
       parsed.autoMode = parsed.autoMode ?? true;
+      if (!parsed.tiles || parsed.tiles.length === 0) {
+        parsed.tiles = generateWorld([]).tiles;
+      }
       if (!parsed.placeableStructures) {
         parsed.placeableStructures = {
           barricade: 1,
@@ -416,7 +440,7 @@ export function findDarkSpawnPosition(
 
   for (let i = 0; i < 36; i++) {
     const angle = (i / 36) * Math.PI * 2 + (Math.random() - 0.5) * 0.15;
-    const dist = 9.0 + Math.random() * 9.0; // Island outer wild range
+    const dist = 12.0 + Math.random() * 14.0; // Outer wild range (ring tiles around the base chunk)
     const cx = Math.cos(angle) * dist;
     const cz = Math.sin(angle) * dist;
 
@@ -453,7 +477,7 @@ export function findDarkSpawnPosition(
 
   // Fallback to outer perimeter if whole island is illuminated
   const fallbackAngle = Math.random() * Math.PI * 2;
-  const fallbackDist = 15.5 + Math.random() * 2;
+  const fallbackDist = 20 + Math.random() * 6;
   return {
     x: Math.cos(fallbackAngle) * fallbackDist,
     z: Math.sin(fallbackAngle) * fallbackDist,
@@ -579,8 +603,27 @@ export function getSavedGameSummary(): {
 export function deleteSavedGame(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
+    cleanupLegacySaves();
   } catch (e) {
     console.warn('Failed to delete saved game', e);
+  }
+}
+
+// Removes leftover saves from previous STORAGE_KEY versions (旧データ破棄方針).
+function cleanupLegacySaves(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('island_survival_save_') && key !== STORAGE_KEY) {
+        keys.push(key);
+      }
+    }
+    for (const key of keys) {
+      localStorage.removeItem(key);
+    }
+  } catch (e) {
+    console.warn('Failed to cleanup legacy saves', e);
   }
 }
 
@@ -652,15 +695,9 @@ function resolveCollision(
   let finalX = targetX;
   let finalZ = targetZ;
 
-  // 1. Island boundary circular clamp
-  const islandCenterZ = 0.5;
-  const distFromCenter = Math.hypot(finalX, finalZ - islandCenterZ);
-  const maxIslandRadius = 13.6;
-  if (distFromCenter > maxIslandRadius) {
-    const angle = Math.atan2(finalZ - islandCenterZ, finalX);
-    finalX = Math.cos(angle) * maxIslandRadius;
-    finalZ = islandCenterZ + Math.sin(angle) * maxIslandRadius;
-  }
+  // 1. World boundary square clamp (base chunk + ring tiles, ocean beyond)
+  finalX = Math.max(-WORLD_BOUND_HALF, Math.min(WORLD_BOUND_HALF, finalX));
+  finalZ = Math.max(-WORLD_BOUND_HALF, Math.min(WORLD_BOUND_HALF, finalZ));
 
   // 2. Cabin Walls AABB Colliders
   for (const box of CABIN_WALL_COLLIDERS) {

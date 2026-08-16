@@ -19,6 +19,10 @@ import {
 } from './entities';
 import { TimeOfDay, ResourceType, ToolType, InkProjectile, InkSplatter, FloatingDrop } from '../types/game';
 import { RevealedArea } from './gameLogic';
+import { BIOME_META, WorldTile, BiomeId } from './worldGen';
+
+// Fog-of-war mask world extent (world coords mapped to [-FOG_EXTENT, FOG_EXTENT]).
+const FOG_EXTENT = 30;
 
 export interface Floating3DText {
   mesh: THREE.Sprite;
@@ -69,6 +73,10 @@ export class IslandThreeEngine {
   public cookingBillboard: THREE.Sprite | null = null;
   public waterMesh: THREE.Mesh | null = null;
 
+  // Catan-style tile world (ring tiles around the fixed base chunk)
+  public tileMeshes: Map<string, THREE.Mesh> = new Map();
+  private biomeTileMaterials: Map<BiomeId, THREE.MeshStandardMaterial> = new Map();
+
   // Fog of War Dynamic Overlay
   private fogPlane: THREE.Mesh | null = null;
   private fogCanvas: HTMLCanvasElement;
@@ -112,13 +120,13 @@ export class IslandThreeEngine {
     this.scene.add(this.hemiLight);
 
     this.sunLight = new THREE.DirectionalLight(0xfffaed, 1.35);
-    this.sunLight.position.set(18, 28, 14);
+    this.sunLight.position.set(30, 40, 24);
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.width = 1024;
     this.sunLight.shadow.mapSize.height = 1024;
     this.sunLight.shadow.camera.near = 0.5;
-    this.sunLight.shadow.camera.far = 70;
-    const shadowD = 22;
+    this.sunLight.shadow.camera.far = 120;
+    const shadowD = 30;
     this.sunLight.shadow.camera.left = -shadowD;
     this.sunLight.shadow.camera.right = shadowD;
     this.sunLight.shadow.camera.top = shadowD;
@@ -349,7 +357,7 @@ export class IslandThreeEngine {
 
   // --- FOG OF WAR (未踏領域の動的マスクメッシュ) ---
   private createFogOfWarMesh() {
-    const fogGeo = new THREE.PlaneGeometry(36, 36);
+    const fogGeo = new THREE.PlaneGeometry(FOG_EXTENT * 2, FOG_EXTENT * 2);
     fogGeo.rotateX(-Math.PI / 2);
 
     const fogMat = new THREE.MeshBasicMaterial({
@@ -376,14 +384,14 @@ export class IslandThreeEngine {
     ctx.fillStyle = '#ffffff'; // White = fogged/hidden
     ctx.fillRect(0, 0, w, h);
 
-    // Island bounds in world coords: x in [-18, 18], z in [-18, 18]
+    // World bounds in world coords: x in [-FOG_EXTENT, FOG_EXTENT], z in [-FOG_EXTENT, FOG_EXTENT]
     // Map world coords (x, z) to canvas pixel coords (px, py)
     ctx.globalCompositeOperation = 'destination-out';
 
     for (const area of revealedAreas) {
-      const cx = ((area.x + 18) / 36) * w;
-      const cy = ((area.z + 18) / 36) * h;
-      const cr = (area.radius / 36) * w;
+      const cx = ((area.x + FOG_EXTENT) / (FOG_EXTENT * 2)) * w;
+      const cy = ((area.z + FOG_EXTENT) / (FOG_EXTENT * 2)) * h;
+      const cr = (area.radius / (FOG_EXTENT * 2)) * w;
 
       const grad = ctx.createRadialGradient(cx, cy, cr * 0.45, cx, cy, cr);
       grad.addColorStop(0, 'rgba(0, 0, 0, 1)');
@@ -614,6 +622,44 @@ export class IslandThreeEngine {
           this.scene.add(mesh);
           this.structureMeshes.set(s.id, mesh);
         }
+      }
+    }
+  }
+
+  // --- SYNC CATAN-STYLE TILE WORLD (ring tiles around the fixed base chunk) ---
+  private getBiomeTileMaterial(biome: BiomeId): THREE.MeshStandardMaterial {
+    let mat = this.biomeTileMaterials.get(biome);
+    if (!mat) {
+      mat = new THREE.MeshStandardMaterial({ color: BIOME_META[biome].color, roughness: 0.85 });
+      this.biomeTileMaterials.set(biome, mat);
+    }
+    return mat;
+  }
+
+  public syncTiles(tiles: WorldTile[]) {
+    const currentIds = new Set(tiles.map((t) => t.id));
+    for (const [id, mesh] of this.tileMeshes.entries()) {
+      if (!currentIds.has(id)) {
+        this.scene.remove(mesh);
+        mesh.geometry.dispose();
+        this.tileMeshes.delete(id);
+      }
+    }
+    for (const tile of tiles) {
+      if (tile.isBase) continue; // Base chunk is rendered by buildTieredIsland()
+      const mat = this.getBiomeTileMaterial(tile.biome);
+      let mesh = this.tileMeshes.get(tile.id);
+      if (!mesh) {
+        const geo = new THREE.BoxGeometry(tile.halfSize * 2, 0.8, tile.halfSize * 2);
+        mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(tile.centerX, 0.4, tile.centerZ);
+        mesh.receiveShadow = true;
+        mesh.castShadow = true;
+        this.scene.add(mesh);
+        this.tileMeshes.set(tile.id, mesh);
+      } else {
+        mesh.material = mat;
+        mesh.position.set(tile.centerX, 0.4, tile.centerZ);
       }
     }
   }

@@ -64,6 +64,7 @@ export default function App() {
     // Initial sync
     engine.syncResourceNodes(gameStateRef.current.resourceNodes);
     engine.syncStructures(gameStateRef.current.structures);
+    engine.syncTiles(gameStateRef.current.tiles || []);
     engine.updateFogOfWar(gameStateRef.current.revealedAreas);
 
     return () => {
@@ -102,6 +103,7 @@ export default function App() {
         engine.setTimeOfDay(updatedState.time.phase, updatedState.time.secondsInDay);
         engine.syncResourceNodes(updatedState.resourceNodes);
         engine.syncStructures(updatedState.structures);
+        engine.syncTiles(updatedState.tiles || []);
         engine.syncEnemies(updatedState.enemies);
         engine.syncArrows(updatedState.projectiles);
         engine.syncInkProjectiles(updatedState.inkProjectiles);
@@ -161,6 +163,7 @@ export default function App() {
     if (engineRef.current) {
       engineRef.current.syncResourceNodes(freshState.resourceNodes);
       engineRef.current.syncStructures(freshState.structures);
+      engineRef.current.syncTiles(freshState.tiles || []);
       engineRef.current.syncEnemies([]);
       engineRef.current.syncArrows([]);
       engineRef.current.syncInkProjectiles([]);
@@ -182,6 +185,7 @@ export default function App() {
     if (engineRef.current) {
       engineRef.current.syncResourceNodes(loaded.resourceNodes);
       engineRef.current.syncStructures(loaded.structures);
+      engineRef.current.syncTiles(loaded.tiles || []);
       engineRef.current.syncEnemies(loaded.enemies || []);
       engineRef.current.syncArrows(loaded.projectiles || []);
       engineRef.current.syncInkProjectiles(loaded.inkProjectiles || []);
