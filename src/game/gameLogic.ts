@@ -629,6 +629,17 @@ const CABIN_WALL_COLLIDERS: BoxCollider[] = [
   { minX: 0.9, maxX: 2.8, minZ: -2.4, maxZ: -2.0 },
 ];
 
+// Tier 2 cliff walls around the North-West high plateau.
+// Access is only possible through the wooden slope ramp gap (x ∈ [-9, -7]) on the south face.
+const CLIFF_WALL_COLLIDERS: BoxCollider[] = [
+  // South cliff face, west of the slope ramp
+  { minX: -13.7, maxX: -9.0, minZ: -5.0, maxZ: -4.9 },
+  // South cliff face, east of the slope ramp
+  { minX: -7.0, maxX: -4.7, minZ: -5.0, maxZ: -4.9 },
+  // East cliff face
+  { minX: -4.8, maxX: -4.7, minZ: -13.45, maxZ: -4.9 },
+];
+
 function resolveCollision(
   currX: number,
   currZ: number,
@@ -696,6 +707,22 @@ function resolveCollision(
     const angle = Math.atan2(finalZ - 3, finalX - (-4));
     finalX = -4 + Math.cos(angle) * cfRadius;
     finalZ = 3 + Math.sin(angle) * cfRadius;
+  }
+
+  // 6. Tier 2 Cliff Walls (blocked everywhere except the slope ramp gap at x ∈ [-9, -7])
+  for (const box of CLIFF_WALL_COLLIDERS) {
+    const closestX = Math.max(box.minX, Math.min(box.maxX, finalX));
+    const closestZ = Math.max(box.minZ, Math.min(box.maxZ, finalZ));
+    const dx = finalX - closestX;
+    const dz = finalZ - closestZ;
+    const distSq = dx * dx + dz * dz;
+
+    if (distSq < radius * radius) {
+      const dist = Math.sqrt(distSq) || 0.001;
+      const overlap = radius - dist;
+      finalX += (dx / dist) * overlap;
+      finalZ += (dz / dist) * overlap;
+    }
   }
 
   return { x: finalX, z: finalZ };
@@ -1449,6 +1476,22 @@ export function updateGameWorld(
       if (!isPlayerSafe) {
         enemy.x += (dx / dist) * effectiveSpeed * deltaSeconds;
         enemy.z += (dz / dist) * effectiveSpeed * deltaSeconds;
+
+        // Tier 2 cliff walls block enemies (only the slope ramp gap at x ∈ [-9, -7] is passable)
+        const enemyRadius = 0.3;
+        for (const box of CLIFF_WALL_COLLIDERS) {
+          const closestX = Math.max(box.minX, Math.min(box.maxX, enemy.x));
+          const closestZ = Math.max(box.minZ, Math.min(box.maxZ, enemy.z));
+          const ex = enemy.x - closestX;
+          const ez = enemy.z - closestZ;
+          const dSq = ex * ex + ez * ez;
+          if (dSq < enemyRadius * enemyRadius) {
+            const d = Math.sqrt(dSq) || 0.001;
+            const overlap = enemyRadius - d;
+            enemy.x += (ex / d) * overlap;
+            enemy.z += (ez / d) * overlap;
+          }
+        }
       }
     } else {
       // Attack player if not in safe zone

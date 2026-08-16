@@ -260,28 +260,17 @@ export class IslandThreeEngine {
     t2CliffEast.position.set(-4.7, 0.8, -9.2);
     islandGroup.add(t2CliffEast);
 
-    // Wooden Stairs (South face of the plateau at x = -8.0, climbing up to Tier 2)
-    const stairsGroup = new THREE.Group();
-    stairsGroup.position.set(-8.0, 0.8, -4.95);
-    const plankMat = new THREE.MeshStandardMaterial({ color: 0xaf7643, roughness: 0.7 });
-
-    const numSteps = 6;
-    for (let i = 0; i < numSteps; i++) {
-      const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.18, 0.4), plankMat);
-      stepMesh.position.set(0, (i + 1) * 0.18, (i - 3) * 0.3);
-      stepMesh.castShadow = true;
-      stepMesh.receiveShadow = true;
-      stairsGroup.add(stepMesh);
-    }
-    const railGeo = new THREE.CylinderGeometry(0.06, 0.06, 2.6, 5);
-    railGeo.rotateX(-Math.PI / 5);
-    const railL = new THREE.Mesh(railGeo, plankMat);
-    railL.position.set(-1.05, 0.65, -0.5);
-    const railR = new THREE.Mesh(railGeo, plankMat);
-    railR.position.set(1.05, 0.65, -0.5);
-    stairsGroup.add(railL);
-    stairsGroup.add(railR);
-    islandGroup.add(stairsGroup);
+    // Wooden Slope Ramp (South face of the plateau at x = -8.0, linking low ground y=0.8 (z=-3.2) to plateau surface y=2.0 (z=-4.95))
+    const slopeMat = new THREE.MeshStandardMaterial({ color: 0xaf7643, roughness: 0.7 });
+    const slopeLen = Math.hypot(1.75, 1.2);
+    const slopeAngle = Math.atan2(1.2, 1.75);
+    const slopeGeo = new THREE.BoxGeometry(2.0, 0.2, slopeLen);
+    slopeGeo.rotateX(slopeAngle);
+    const slopeMesh = new THREE.Mesh(slopeGeo, slopeMat);
+    slopeMesh.position.set(-8, 1.3175, -4.1316);
+    slopeMesh.castShadow = true;
+    slopeMesh.receiveShadow = true;
+    islandGroup.add(slopeMesh);
 
     // Decorative coastal boulders
     const decorRock1 = createRockMesh();
@@ -499,10 +488,12 @@ export class IslandThreeEngine {
   }
 
   public getTerrainHeight(x: number, z: number): number {
+    // Tier 2 High Plateau surface
     if (x <= -4.7 && z <= -4.95) {
       return 2.0;
     }
-    if (Math.abs(x - (-8.0)) < 1.1 && z >= -4.95 && z <= -3.2) {
+    // Wooden slope ramp (x ∈ [-9, -7]): low ground z=-3.2 (0.8) -> plateau edge z=-4.95 (2.0)
+    if (x >= -9.0 && x <= -7.0 && z >= -4.95 && z <= -3.2) {
       const progress = Math.max(0, Math.min(1, (-3.2 - z) / 1.75));
       return 0.8 + progress * 1.2;
     }
