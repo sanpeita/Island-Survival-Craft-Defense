@@ -511,28 +511,53 @@ export function createPalmTreeMesh(): THREE.Group {
 export function createRockMesh(): THREE.Group {
   const group = new THREE.Group();
 
-  const mainGeo = new THREE.DodecahedronGeometry(0.9, 1);
-  // Deform slightly for natural stylized look
+  // Main low-poly boulder: icosahedron base (20 faces) deformed by direction-based noise.
+  // flatShading gives crisp angular facets so it reads as a rock, not a fuzzy bush.
+  const mainGeo = new THREE.IcosahedronGeometry(0.9, 0);
   const pos = mainGeo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
-    const vx = pos.getX(i) * (0.85 + Math.sin(i * 1.5) * 0.15);
-    const vy = pos.getY(i) * 0.75;
-    const vz = pos.getZ(i) * (0.85 + Math.cos(i * 1.7) * 0.15);
-    pos.setXYZ(i, vx, vy, vz);
+    const vx = pos.getX(i);
+    const vy = pos.getY(i);
+    const vz = pos.getZ(i);
+    const len = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
+    const dx = vx / len;
+    const dy = vy / len;
+    const dz = vz / len;
+    // Continuous noise based on direction vector -> natural angular silhouette
+    const noise = 0.85 + 0.15 * (Math.sin(dx * 3.1 + dz * 1.3) * 0.5 + Math.sin(dy * 4.2 + 1.7) * 0.5);
+    pos.setXYZ(i, vx * noise, vy * noise * 0.8, vz * noise);
   }
   mainGeo.computeVertexNormals();
 
-  const mainMesh = new THREE.Mesh(mainGeo, materials.stone);
-  mainMesh.position.y = 0.55;
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x8a929c, roughness: 0.9, flatShading: true });
+  const mainMesh = new THREE.Mesh(mainGeo, rockMat);
+  mainMesh.position.y = 0.5;
   mainMesh.castShadow = true;
   mainMesh.receiveShadow = true;
   group.add(mainMesh);
 
-  // Small side rock
-  const subGeo = new THREE.DodecahedronGeometry(0.45, 0);
-  const subMesh = new THREE.Mesh(subGeo, materials.stoneDark);
-  subMesh.position.set(0.6, 0.25, 0.3);
+  // Secondary smaller boulder nestled against the main rock
+  const subGeo = new THREE.IcosahedronGeometry(0.42, 0);
+  const subPos = subGeo.attributes.position;
+  for (let i = 0; i < subPos.count; i++) {
+    const vx = subPos.getX(i);
+    const vy = subPos.getY(i);
+    const vz = subPos.getZ(i);
+    const len = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
+    const dx = vx / len;
+    const dy = vy / len;
+    const dz = vz / len;
+    const noise = 0.85 + 0.15 * (Math.sin(dx * 3.7 + 0.8) * 0.5 + Math.sin(dy * 4.9 + dz * 2.1) * 0.5);
+    subPos.setXYZ(i, vx * noise, vy * noise * 0.85, vz * noise);
+  }
+  subGeo.computeVertexNormals();
+
+  const subMat = new THREE.MeshStandardMaterial({ color: 0x6e7680, roughness: 0.92, flatShading: true });
+  const subMesh = new THREE.Mesh(subGeo, subMat);
+  subMesh.position.set(0.8, 0.15, 0.5);
+  subMesh.rotation.y = 0.8;
   subMesh.castShadow = true;
+  subMesh.receiveShadow = true;
   group.add(subMesh);
 
   group.userData = { type: 'rock', mainMesh };
